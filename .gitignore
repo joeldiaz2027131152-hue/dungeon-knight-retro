@@ -1,0 +1,8 @@
+# Ignore other unrelated projects in the same parent folder
+DictaFlow/
+My project/
+
+# Ignore local OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini

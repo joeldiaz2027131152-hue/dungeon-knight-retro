@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dungeon Knight: Boss Battle</title>
+    <!-- Fuente Retro de Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Filtro CRT Retro -->
+        <div class="crt-overlay"></div>
+        
+        <!-- Canvas del Juego -->
+        <canvas id="gameCanvas" width="960" height="540"></canvas>
+
+        <!-- INTERFAZ DE USUARIO (HUD) -->
+        <div id="hud" class="hidden">
+            <div class="hud-left">
+                <!-- Barra de Vida del Jugador -->
+                <div class="status-bar-container">
+                    <span class="bar-label">HP</span>
+                    <div class="bar-border">
+                        <div id="player-hp-bar" class="bar-fill hp-fill" style="width: 100%;"></div>
+                        <div id="player-hp-shadow" class="bar-fill-shadow" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <!-- Barra de Estamina / Escudo -->
+                <div class="status-bar-container">
+                    <span class="bar-label">ST</span>
+                    <div class="bar-border">
+                        <div id="player-st-bar" class="bar-fill st-fill" style="width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="hud-right" style="position: relative; pointer-events: auto;">
+                <!-- Botón de Bulto (Inventario) -->
+                <button id="btn-inventory-hud" class="hud-pause-btn" style="position: relative;">🎒<span id="inventory-badge" style="font-size: 8px; color: var(--gold); font-weight: bold; position: absolute; bottom: 2px; right: 2px; text-shadow: 1px 1px 1px #000;">1</span></button>
+                <!-- Botón de Pausa -->
+                <button id="btn-pause-hud" class="hud-pause-btn">⏸️</button>
+                <!-- Contador de Monedas -->
+                <div class="coin-counter" style="display: inline-flex;">
+                    <span class="coin-icon">🪙</span>
+                    <span id="coin-count">000</span>
+                </div>
+
+                <!-- POPUP DE INVENTARIO (Bulto flotante) -->
+                <div id="inventory-popup" class="inventory-popup-box hidden">
+                    <div class="inventory-popup-title">EL BULTO</div>
+                    <div class="inventory-grid">
+                        <div id="slot-potion" class="inventory-slot active-slot">
+                            <span class="slot-icon">🧪</span>
+                            <span id="slot-potion-qty" class="slot-qty">x1</span>
+                        </div>
+                        <div class="inventory-slot empty-slot"><span class="slot-icon" style="opacity: 0.15;">🗡️</span></div>
+                        <div class="inventory-slot empty-slot"><span class="slot-icon" style="opacity: 0.15;">🛡️</span></div>
+                    </div>
+                    <div class="inventory-popup-desc">🧪 POCIÓN DE VIDA<br><span style="font-size: 6px; color: #a0a0b0; display: block; margin-top: 4px;">Toca para tomar (+35 HP)</span></div>
+                </div>
+            </div>
+
+            <!-- Barra de Vida del Jefe (Solo aparece en el Nivel 2) -->
+            <div id="boss-hud" class="hidden animate-fade-in">
+                <div class="boss-name">EL REY ESQUELETO GIGANTE</div>
+                <div class="boss-bar-border">
+                    <div id="boss-hp-bar" class="boss-bar-fill" style="width: 100%;"></div>
+                    <div id="boss-hp-shadow" class="boss-bar-fill-shadow" style="width: 100%;"></div>
+                </div>
+            </div>
+            
+            <!-- Indicador de Interacción de la Hoguera -->
+            <div id="bonfire-prompt" class="hidden">
+                <button id="btn-interact-bonfire" class="interact-btn animate-pulse">🔥 ABRIR TIENDA / DESCANSAR (PULSA 'E') 🔥</button>
+            </div>
+        </div>
+
+        <!-- PANTALLA: MENÚ DE INICIO -->
+        <div id="start-menu" class="overlay-screen">
+            <h1 class="game-title">DUNGEON KNIGHT</h1>
+            <h2 class="game-subtitle">THE SKELETON KING</h2>
+            
+            <div class="menu-knight-showcase">
+                <!-- Se dibuja un icono o figura decorativa -->
+            </div>
+
+            <button id="btn-start" class="btn-retro animate-pulse">INICIAR AVENTURA</button>
+
+            <div class="controls-guide">
+                <h3>CONTROLES (TECLADO):</h3>
+                <p><span>A / D</span> o <span>← / →</span> : Moverse</p>
+                <p><span>W</span> o <span>ESPACIO</span> : Saltar</p>
+                <p><span>S</span> o <span>↓</span> : Agacharse (Esquivar trampas altas)</p>
+                <p><span>J</span> o <span>CLICK</span> : Atacar con Espada</p>
+                <p><span>K</span> : Bloquear con Escudo</p>
+                <p><span>L</span> : Rodar (Invulnerabilidad)</p>
+                <p><span>I</span> : Abrir Bulto (Inventario)</p>
+                <p><span>Q</span> : Beber Poción rápidamente</p>
+                <p><span>E</span> : Interactuar con Hoguera (Tienda/Descanso)</p>
+                <p><span>ESC / P</span> : Pausar el juego</p>
+            </div>
+        </div>
+
+        <!-- PANTALLA: GAME OVER (FIN DEL JUEGO) -->
+        <div id="game-over-screen" class="overlay-screen hidden">
+            <h1 class="game-over-title animate-shake">HAS MUERTO</h1>
+            <p class="game-over-subtitle">Tu alma permanece en la mazmorra...</p>
+            
+            <div class="stats-box">
+                <p>Monedas obtenidas: <span id="stat-coins">0</span></p>
+                <p>Cajas rotas: <span id="stat-crates">0</span></p>
+                <p>Enemigos derrotados: <span id="stat-enemies">0</span></p>
+            </div>
+
+            <button id="btn-respawn" class="btn-retro">REAPARECER EN LA HOGUERA</button>
+        </div>
+
+        <!-- PANTALLA: VICTORIA -->
+        <div id="victory-screen" class="overlay-screen hidden">
+            <h1 class="victory-title animate-glow">¡VICTORIA!</h1>
+            <h2 class="victory-subtitle">EL REY ESQUELETO HA SIDO DESTRUIDO</h2>
+            
+            <div class="victory-stats-box">
+                <div class="rank-badge animate-scale">RANGO S</div>
+                <p>Tiempo de combate: <span id="stat-time">00:00</span></p>
+                <p>Monedas Totales: <span id="stat-victory-coins">0</span></p>
+                <p>Daño Bloqueado: <span id="stat-blocked">0</span></p>
+            </div>
+
+            <button id="btn-restart" class="btn-retro">JUGAR DE NUEVO</button>
+        </div>
+
+        <!-- PANTALLA: PAUSA -->
+        <div id="pause-screen" class="overlay-screen hidden">
+            <h1 class="game-title animate-glow">PAUSA</h1>
+            <p class="game-subtitle">El juego está suspendido</p>
+            
+            <div class="menu-buttons-vertical">
+                <button id="btn-resume" class="btn-retro">CONTINUAR</button>
+                <button id="btn-mute" class="btn-retro">SONIDO: ON</button>
+                <button id="btn-pause-restart" class="btn-retro">REINICIAR</button>
+            </div>
+        </div>
+
+        <!-- PANTALLA: TIENDA DE LA HOGUERA -->
+        <div id="bonfire-screen" class="overlay-screen hidden">
+            <h1 class="game-title animate-glow" style="color: #ff6600; text-shadow: 0 0 15px rgba(255,102,0,0.6), 4px 4px 0px #000;">LA HOGUERA</h1>
+            <p class="game-subtitle" style="color: #ffd700; margin-bottom: 20px;">DESCANSO Y TIENDA MÁGICA</p>
+            
+            <div class="stats-box" style="border-color: #ff6600; background: rgba(15, 10, 5, 0.85);">
+                <p>Tus Monedas: <span id="shop-coins" style="color: #ffd700;">000</span></p>
+                <p>Tu HP actual: <span id="shop-hp" style="color: #ff3333;">100 / 100</span></p>
+            </div>
+
+            <div class="menu-buttons-vertical">
+                <button id="btn-shop-rest" class="btn-retro">🔥 DESCANSAR (GRATIS - CURA 100%)</button>
+                <button id="btn-shop-buy" class="btn-retro">🧪 COMPRAR POCIÓN (AL BULTO - CUESTA 10 🪙)</button>
+                <button id="btn-shop-exit" class="btn-retro" style="background-color: #2a1515; border-color: #3e2723;">VOLVER AL CAMINO</button>
+            </div>
+        </div>
+
+        <!-- CONTROLES TÁCTILES PARA DISPOSITIVOS MÓVILES (Ocultos en PC) -->
+        <div id="mobile-gamepad" class="hidden">
+            <!-- D-Pad Izquierdo -->
+            <div class="dpad-container">
+                <button id="btn-left" class="gamepad-btn dpad-btn">◀</button>
+                <div class="dpad-middle">
+                    <button id="btn-crouch" class="gamepad-btn dpad-btn">▼</button>
+                </div>
+                <button id="btn-right" class="gamepad-btn dpad-btn">▶</button>
+            </div>
+
+            <!-- Botones de Acción Derechos -->
+            <div class="action-container">
+                <div class="action-row">
+                    <button id="btn-roll" class="gamepad-btn action-btn btn-blue">ROLL</button>
+                    <button id="btn-block" class="gamepad-btn action-btn btn-green">BLOCK</button>
+                </div>
+                <div class="action-row">
+                    <button id="btn-attack" class="gamepad-btn action-btn btn-red">ATTACK</button>
+                    <button id="btn-jump" class="gamepad-btn action-btn btn-yellow">JUMP</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Carga de Módulos de Javascript -->
+    <script type="module" src="js/game.js"></script>
+</body>
+</html>
