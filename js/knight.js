@@ -59,6 +59,11 @@ export class Knight {
         this.statsEnemiesKilled = 0;
         this.statsDamageBlocked = 0;
         this.jumpConsumed = false;
+
+        // Mecánica de Gancho (Grappling Hook)
+        this.isHooked = false;
+        this.hookX = 0;
+        this.hookY = 0;
     }
 
     update(input) {
@@ -71,6 +76,33 @@ export class Knight {
         if (this.attackCooldown > 0) this.attackCooldown--;
         if (this.hurtTimer > 0) this.hurtTimer--;
         if (this.invincibleTimer > 0) this.invincibleTimer--;
+
+        // Manejar Físicas del Gancho
+        if (this.isHooked) {
+            const px = this.x + this.width / 2;
+            const py = this.y + this.height / 2;
+            const dx = this.hookX - px;
+            const dy = this.hookY - py;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+
+            if (dist < 22) {
+                // Llegamos a la plataforma! Liberar con un pequeño impulso
+                this.releaseHook(true);
+            } else {
+                // Moverse rápidamente hacia el gancho
+                const pullSpeed = 9.5;
+                this.vx = (dx / dist) * pullSpeed;
+                this.vy = (dy / dist) * pullSpeed;
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // Si el jugador presiona saltar, atacar o rodar, cancela el gancho
+                if (input.jump || input.attack || input.roll) {
+                    this.releaseHook(input.jump); // Aporta impulso extra si salta
+                }
+            }
+            return; // Ignorar física estándar de gravedad/teclas al colgarse
+        }
 
         // Manejar Rodamiento (Invulnerabilidad y movimiento forzado)
         if (this.isRolling) {
@@ -288,6 +320,63 @@ export class Knight {
     addCoin() {
         this.coins++;
         particles.spawnCollectGlow(this.x + this.width/2, this.y + this.height/2, '#ffd700', 4);
+    }
+
+    // Lanzar Gancho de Escalar hacia la plataforma más cercana arriba
+    fireHook(platforms) {
+        if (this.isRolling || this.hp <= 0) return;
+
+        if (this.isHooked) {
+            this.releaseHook(false);
+            return;
+        }
+
+        const px = this.x + this.width / 2;
+        const py = this.y + this.height / 2;
+        let closestPlat = null;
+        let minDist = 999999;
+        let targetX = 0;
+        let targetY = 0;
+
+        platforms.forEach(plat => {
+            // Buscamos colgarse del borde inferior de la plataforma
+            const platCenterX = plat.x + plat.width / 2;
+            const platBottomY = plat.y + plat.height;
+
+            const dx = platCenterX - px;
+            const dy = platBottomY - py;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            // Debe estar por encima (dy < 10) y dentro del alcance de 280px
+            if (dy < 10 && dist < 280 && dist < minDist) {
+                minDist = dist;
+                closestPlat = plat;
+                targetX = platCenterX;
+                targetY = platBottomY;
+            }
+        });
+
+        if (closestPlat) {
+            this.isHooked = true;
+            this.hookX = targetX;
+            this.hookY = targetY;
+            audio.playJump(); // Reproducir sonido retro
+            
+            // Efectos visuales de enganche
+            particles.spawnSparks(targetX, targetY, 6, 0);
+            particles.addFloatingText(px, py - 20, "HOOK!", "#00ffcc", 10, true);
+        } else {
+            particles.addFloatingText(px, py - 20, "NO TARGET", "#ff3333", 9, false);
+        }
+    }
+
+    releaseHook(giveBoost = false) {
+        this.isHooked = false;
+        if (giveBoost) {
+            this.vy = -7.5; // Impulso hacia arriba espectacular para catapultarse
+            audio.playJump();
+            particles.spawnDust(this.x + this.width/2, this.y + this.height, 4);
+        }
     }
 
     // ==========================================================================

@@ -173,6 +173,13 @@ class Game {
                 return;
             }
 
+            // Tecla de lanzar gancho (F)
+            if (e.code === 'KeyF' && this.state === 'playing' && !this.isPaused && !this.isShopOpen) {
+                e.preventDefault();
+                this.player.fireHook(this.platforms);
+                return;
+            }
+
             if (this.state !== 'playing' || this.isPaused || this.isShopOpen) return;
             
             // Prevenir scroll
@@ -278,6 +285,19 @@ class Game {
         bindButton('btn-attack', 'attack');
         bindButton('btn-block', 'block');
         bindButton('btn-roll', 'roll');
+
+        // Botón de Gancho Móvil
+        const btnHook = document.getElementById('btn-hook');
+        if (btnHook) {
+            const triggerHook = (e) => {
+                e.preventDefault();
+                if (this.state === 'playing' && !this.isPaused && !this.isShopOpen) {
+                    this.player.fireHook(this.platforms);
+                }
+            };
+            btnHook.addEventListener('touchstart', triggerHook);
+            btnHook.addEventListener('mousedown', triggerHook);
+        }
 
         // --- Botones de Menú ---
         this.btnStart.addEventListener('click', () => this.startGame());
@@ -411,16 +431,16 @@ class Game {
             this.levelWidth = 2200;
 
             // Plataformas flotantes
-            this.platforms.push(new Platform(280, 310, 160));
-            this.platforms.push(new Platform(500, 200, 160));
+            this.platforms.push(new Platform(280, 340, 160)); // Bajada a 340
+            this.platforms.push(new Platform(500, 210, 160)); // Bajada a 210
             this.platforms.push(new Platform(780, 290, 180));
             this.platforms.push(new Platform(1050, 180, 200));
             this.platforms.push(new Platform(1350, 280, 160));
             this.platforms.push(new Platform(1600, 190, 180));
 
             // Cajas Rompibles
-            this.crates.push(new Crate(320, 272)); // Plataforma 1
-            this.crates.push(new Crate(540, 162)); // Plataforma 2
+            this.crates.push(new Crate(320, 302)); // Plataforma 1
+            this.crates.push(new Crate(540, 172)); // Plataforma 2
             this.crates.push(new Crate(820, 252)); // Plataforma 3
             this.crates.push(new Crate(1400, 242)); // Plataforma 5
             this.crates.push(new Crate(100, this.floorY - 38)); // Suelo
@@ -432,7 +452,7 @@ class Game {
             this.fireTraps.push(new FireTrap(1500, this.floorY - 16));
 
             // Esqueletos Arqueros
-            this.archers.push(new SkeletonArcher(520, 200 - 54)); // Plataforma 2
+            this.archers.push(new SkeletonArcher(520, 210 - 54)); // Plataforma 2
             this.archers.push(new SkeletonArcher(1080, 180 - 54)); // Plataforma 4
             this.archers.push(new SkeletonArcher(1620, 190 - 54)); // Plataforma 6
             this.archers.push(new SkeletonArcher(900, this.floorY - 54)); // Suelo
@@ -1046,6 +1066,11 @@ class Game {
         // 5. Dibujar botín tirado (Loot)
         this.lootItems.forEach(item => item.draw(this.ctx));
 
+        // 5.5. Dibujar cadena del gancho si el caballero está colgado
+        if (this.player && this.player.isHooked) {
+            this.drawHookChain();
+        }
+
         // 6. Dibujar Caballero Héroe
         if (this.player) {
             this.player.draw(this.ctx);
@@ -1106,6 +1131,54 @@ class Game {
             this.ctx.arc(bx + 24, by + 34 + fBob, 16, 0, Math.PI*2);
             this.ctx.fill();
         }
+
+        this.ctx.restore();
+    }
+
+    drawHookChain() {
+        const px = this.player.x + this.player.width / 2;
+        const py = this.player.y + this.player.height / 2;
+        const hx = this.player.hookX;
+        const hy = this.player.hookY;
+
+        this.ctx.save();
+        
+        // 1. Dibujar línea de acero de la cadena
+        this.ctx.strokeStyle = '#5a5a6a';
+        this.ctx.lineWidth = 3.5;
+        this.ctx.beginPath();
+        this.ctx.moveTo(px, py);
+        this.ctx.lineTo(hx, hy);
+        this.ctx.stroke();
+
+        // 2. Dibujar eslabones de cadena retro
+        this.ctx.fillStyle = '#1d1d24';
+        const dx = hx - px;
+        const dy = hy - py;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const links = Math.floor(dist / 14);
+
+        for (let i = 0; i <= links; i++) {
+            const ratio = i / links;
+            const lx = px + dx * ratio;
+            const ly = py + dy * ratio;
+            
+            this.ctx.fillStyle = i % 2 === 0 ? '#8e8e9e' : '#5a5a6a';
+            this.ctx.beginPath();
+            this.ctx.arc(lx, ly, 3, 0, Math.PI*2);
+            this.ctx.fill();
+            
+            this.ctx.fillStyle = '#111';
+            this.ctx.beginPath();
+            this.ctx.arc(lx, ly, 1.2, 0, Math.PI*2);
+            this.ctx.fill();
+        }
+
+        // 3. Dibujar punta del gancho dorada
+        this.ctx.fillStyle = '#ffd700';
+        this.ctx.beginPath();
+        this.ctx.arc(hx, hy, 5, 0, Math.PI*2);
+        this.ctx.fill();
 
         this.ctx.restore();
     }
@@ -1457,8 +1530,8 @@ class Game {
         } else if (this.level === 2) {
             // ¡REAPARECER TODO EN EL NIVEL 2 ESTILO DARK SOULS!
             this.crates = [];
-            this.crates.push(new Crate(320, 272)); // Plataforma 1
-            this.crates.push(new Crate(540, 162)); // Plataforma 2
+            this.crates.push(new Crate(320, 302)); // Plataforma 1
+            this.crates.push(new Crate(540, 172)); // Plataforma 2
             this.crates.push(new Crate(820, 252)); // Plataforma 3
             this.crates.push(new Crate(1400, 242)); // Plataforma 5
             this.crates.push(new Crate(100, this.floorY - 38)); // Suelo
@@ -1479,7 +1552,7 @@ class Game {
             this.spikes.push(new Spikes(1650, this.floorY - 20, 3));
 
             this.archers = [];
-            this.archers.push(new SkeletonArcher(520, 200 - 54)); // Plataforma 2
+            this.archers.push(new SkeletonArcher(520, 210 - 54)); // Plataforma 2
             this.archers.push(new SkeletonArcher(1080, 180 - 54)); // Plataforma 4
             this.archers.push(new SkeletonArcher(1620, 190 - 54)); // Plataforma 6
             this.archers.push(new SkeletonArcher(900, this.floorY - 54));
