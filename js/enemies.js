@@ -606,3 +606,380 @@ export class SkeletonMinion {
         ctx.restore();
     }
 }
+
+// ==========================================================================
+// PLATAFORMAS DE PIEDRA FLOTANTES (Gothic Stone Platforms)
+// ==========================================================================
+export class Platform {
+    constructor(x, y, width, height = 25) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+    }
+
+    draw(ctx) {
+        ctx.save();
+        
+        // Cuerpo principal de la plataforma (piedra gris/marrón)
+        ctx.fillStyle = '#3a3542';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        
+        ctx.strokeStyle = '#1d1924';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(this.x, this.y, this.width, this.height);
+
+        // Dibujar bloques o grietas en la plataforma (estética retro)
+        ctx.fillStyle = '#564f63';
+        const blockSize = 32;
+        const totalBlocks = Math.ceil(this.width / blockSize);
+        for (let i = 0; i < totalBlocks; i++) {
+            const bx = this.x + (i * blockSize);
+            // Borde superior brillante
+            ctx.fillRect(bx + 2, this.y + 2, Math.min(blockSize - 4, this.x + this.width - bx - 4), 3);
+            // Grietas
+            ctx.fillStyle = '#1d1924';
+            if (i > 0 && bx < this.x + this.width) {
+                ctx.fillRect(bx, this.y, 2, this.height);
+            }
+            ctx.fillStyle = '#564f63';
+        }
+
+        // Musgo o detalles góticos inferiores colgando (decorativo)
+        ctx.fillStyle = '#221929';
+        for (let j = 4; j < this.width; j += 16) {
+            ctx.fillRect(this.x + j, this.y + this.height - 4, 8, 4);
+        }
+
+        ctx.restore();
+    }
+}
+
+// ==========================================================================
+// TRAMPA DE FUEGO TERRESTRE (Fire Trap)
+// ==========================================================================
+export class FireTrap {
+    constructor(x, y, width = 45) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = 16;
+        this.damage = 1.2; // Daño continuo por frame
+
+        // Estado del ciclo de fuego
+        this.state = 0; // 0 = Inactivo, 1 = Advertencia, 2 = Activo
+        this.timer = 0;
+        this.cycleDurations = [180, 60, 90]; // Tiempos para cada estado (Inactivo, Advertencia, Activo)
+    }
+
+    update(player) {
+        this.timer++;
+        if (this.timer >= this.cycleDurations[this.state]) {
+            this.state = (this.state + 1) % 3;
+            this.timer = 0;
+        }
+
+        const cx = this.x + this.width / 2;
+
+        if (this.state === 1) {
+            // Estado advertencia: soltar chispas pequeñas
+            if (Math.random() < 0.25) {
+                particles.spawnFire(cx + (Math.random() - 0.5) * this.width, this.y, 0.4);
+            }
+        } else if (this.state === 2) {
+            // Estado activo: emitir fuego potente
+            particles.spawnFire(cx + (Math.random() - 0.5) * this.width, this.y, 1.3);
+            if (Math.random() < 0.2) {
+                particles.spawnCollectGlow(cx + (Math.random() - 0.5) * this.width, this.y - 30, '#ff4500', 1);
+            }
+
+            // Colisión con el jugador (daño continuo)
+            if (this.checkCollision(player)) {
+                player.takeDamage(0.6, (player.x + player.width/2 > cx ? 1.0 : -1.0), cx);
+            }
+        }
+    }
+
+    checkCollision(player) {
+        // Altura del fuego activo sube aprox 70px
+        const fireHeight = 70;
+        return player.x < this.x + this.width &&
+               player.x + player.width > this.x &&
+               player.y < this.y + this.height &&
+               player.y + player.height > this.y - fireHeight;
+    }
+
+    draw(ctx) {
+        ctx.save();
+
+        // 1. Dibujar Rejilla metálica de la trampa en el suelo
+        ctx.fillStyle = '#26242e';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        
+        ctx.strokeStyle = '#131117';
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(this.x, this.y, this.width, this.height);
+
+        // Ranuras metálicas
+        ctx.fillStyle = '#131117';
+        for (let i = 6; i < this.width; i += 10) {
+            ctx.fillRect(this.x + i, this.y + 2, 4, this.height - 4);
+        }
+
+        // 2. Dibujar efectos visuales según estado
+        if (this.state === 1) {
+            // Advertencia: brillo rojo/naranja latente
+            const alpha = 0.4 + Math.sin(this.timer * 0.15) * 0.3;
+            ctx.fillStyle = `rgba(255, 68, 0, ${alpha})`;
+            ctx.fillRect(this.x + 2, this.y + 2, this.width - 4, this.height - 4);
+        } else if (this.state === 2) {
+            // Núcleo de fuego ardiente
+            ctx.fillStyle = '#ff8800';
+            ctx.fillRect(this.x + 2, this.y + 2, this.width - 4, this.height - 4);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(this.x + this.width/2 - 6, this.y + 4, 12, this.height - 8);
+        }
+
+        ctx.restore();
+    }
+}
+
+// ==========================================================================
+// PROYECTIL DE FLECHA (Arrow Projectile)
+// ==========================================================================
+export class ArrowProjectile {
+    constructor(x, y, vx, damage = 10) {
+        this.x = x;
+        this.y = y;
+        this.width = 18;
+        this.height = 6;
+        this.vx = vx;
+        this.damage = damage;
+        this.active = true;
+    }
+
+    update() {
+        this.x += this.vx;
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        ctx.save();
+        ctx.translate(this.x + this.width/2, this.y + this.height/2);
+        
+        // Orientación según velocidad
+        ctx.scale(this.vx > 0 ? 1 : -1, 1);
+
+        // Astil de madera de la flecha
+        ctx.fillStyle = '#8b5a2b';
+        ctx.fillRect(-9, -1, 14, 2);
+
+        // Plumas traseras (blancas)
+        ctx.fillStyle = '#e6e6e6';
+        ctx.fillRect(-9, -3, 3, 2);
+        ctx.fillRect(-9, 1, 3, 2);
+
+        // Punta de hierro
+        ctx.fillStyle = '#8e8e9e';
+        ctx.beginPath();
+        ctx.moveTo(5, -3);
+        ctx.lineTo(9, 0);
+        ctx.lineTo(5, 3);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
+    }
+}
+
+// ==========================================================================
+// ENEMIGO ESQUELETO ARQUERO (Patrulla o se queda quieto y dispara flechas)
+// ==========================================================================
+export class SkeletonArcher {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 34;
+        this.height = 54;
+
+        this.vx = 0; // Se queda parado por defecto para no caerse de plataformas
+        this.gravity = 0.5;
+        this.vy = 0;
+
+        this.maxHp = 20;
+        this.hp = 20;
+        this.active = true;
+        this.damage = 10;
+
+        this.hurtTimer = 0;
+        this.facing = -1; // -1 = Izquierda, 1 = Derecha
+        
+        // Estado de la IA del arquero
+        this.aiState = 0; // 0 = Espera/Patrulla, 1 = Tensando Arco, 2 = Cooldown tras disparo
+        this.aiTimer = 0;
+        this.shootRange = 450;
+    }
+
+    update(player, arrows) {
+        if (!this.active) return;
+
+        if (this.hurtTimer > 0) this.hurtTimer--;
+
+        // Físicas básicas
+        this.vy += this.gravity;
+        this.y += this.vy;
+
+        // Determinar orientación hacia el jugador
+        const distToPlayerX = player.x + player.width/2 - (this.x + this.width/2);
+        const distToPlayerY = Math.abs(player.y - this.y);
+        
+        if (Math.abs(distToPlayerX) < this.shootRange && distToPlayerY < 120) {
+            this.facing = distToPlayerX > 0 ? 1 : -1;
+            
+            if (this.aiState === 0) {
+                this.aiState = 1;
+                this.aiTimer = 0;
+            }
+        }
+
+        // Lógica de estados de la IA
+        this.aiTimer++;
+        if (this.aiState === 1) {
+            // Tensando arco
+            if (this.aiTimer >= 45) {
+                // ¡Disparar flecha!
+                const arrowX = this.facing === 1 ? this.x + this.width + 5 : this.x - 20;
+                const arrowY = this.y + 18;
+                const arrowVx = this.facing * 7.5; // Velocidad de la flecha
+                arrows.push(new ArrowProjectile(arrowX, arrowY, arrowVx, this.damage));
+                
+                audio.playSwordSwing(); // Sonido rápido
+                
+                this.aiState = 2; // Entrar en cooldown
+                this.aiTimer = 0;
+            }
+        } else if (this.aiState === 2) {
+            // Cooldown tras disparo
+            if (this.aiTimer >= 80) {
+                this.aiState = 0;
+                this.aiTimer = 0;
+            }
+        }
+    }
+
+    takeDamage(amount) {
+        if (!this.active) return null;
+        this.hp = Math.max(0, this.hp - amount);
+        this.hurtTimer = 15;
+
+        audio.playHit();
+        particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 8, true);
+        particles.addFloatingText(this.x + this.width/2, this.y - 12, `-${amount}`, "#ffffff", 9, false);
+
+        if (this.hp <= 0) {
+            this.active = false;
+            audio.playCrateBreak();
+            particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 16, true);
+            particles.addFloatingText(this.x + this.width/2, this.y - 12, "BONED", "#b89700", 10, true);
+            
+            // Suelta una moneda
+            return new LootItem(this.x + this.width/2 - 8, this.y + this.height - 20, 'coin');
+        }
+        return null;
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+
+        ctx.save();
+        ctx.translate(this.x + this.width/2, this.y + this.height/2);
+        ctx.scale(this.facing, 1);
+
+        if (this.hurtTimer > 0) {
+            ctx.shadowColor = '#ff0000';
+            ctx.shadowBlur = 8;
+        }
+
+        // Sombra
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.beginPath();
+        ctx.ellipse(0, this.height/2 - 2, 12, 3, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        const x = -this.width / 2;
+        const y = -this.height / 2;
+
+        // Dibujar cuerpo de esqueleto arquero (color hueso amarillento para catacumbas)
+        ctx.fillStyle = '#e2dfd2';
+        ctx.fillRect(x + 14, y + 16, 6, 18); // columna
+        
+        ctx.fillStyle = '#c5c2b5';
+        ctx.fillRect(x + 10, y + 20, 14, 3); // costillas
+        ctx.fillRect(x + 10, y + 25, 14, 3);
+        ctx.fillRect(x + 11, y + 30, 12, 3); // pelvis
+
+        // Piernas
+        ctx.fillRect(x + 10, y + 34, 4, 15);
+        ctx.fillRect(x + 8, y + 49, 7, 5);
+        ctx.fillRect(x + 20, y + 34, 4, 15);
+        ctx.fillRect(x + 19, y + 49, 7, 5);
+
+        // Cráneo
+        ctx.fillStyle = '#e2dfd2';
+        ctx.fillRect(x + 10, y + 2, 14, 14);
+        ctx.fillStyle = '#111';
+        ctx.fillRect(x + 12, y + 6, 4, 4);
+        ctx.fillRect(x + 18, y + 6, 4, 4);
+        ctx.fillStyle = '#ff8800'; // Ojos de fuego naranja
+        ctx.fillRect(x + 13, y + 7, 1, 1);
+        ctx.fillRect(x + 19, y + 7, 1, 1);
+
+        // Mandíbula
+        ctx.fillStyle = '#c5c2b5';
+        ctx.fillRect(x + 12, y + 13, 10, 3);
+
+        // Brazo trasero y delantero sosteniendo el Arco
+        ctx.fillStyle = '#c5c2b5';
+        
+        if (this.aiState === 1) {
+            // TENSANDO ARCO
+            ctx.fillRect(x + 20, y + 18, 12, 4);
+            
+            ctx.strokeStyle = '#8b5a2b';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(x + 32, y + 20, 16, -Math.PI*0.5, Math.PI*0.5);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#e6e6e6';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x + 32, y + 4);
+            ctx.lineTo(x + 16, y + 20);
+            ctx.lineTo(x + 32, y + 36);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ff8800';
+            ctx.fillRect(x + 14, y + 19, 16, 2);
+            ctx.fillRect(x + 30, y + 18, 3, 4);
+        } else {
+            // ESTADO DE ESPERA / COOLDOWN
+            ctx.fillRect(x + 22, y + 20, 4, 12);
+            
+            ctx.strokeStyle = '#8b5a2b';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(x + 24, y + 34, 12, -Math.PI*0.4, Math.PI*0.6);
+            ctx.stroke();
+            
+            ctx.strokeStyle = '#e6e6e6';
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(x + 28, y + 22);
+            ctx.lineTo(x + 28, y + 44);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+}
