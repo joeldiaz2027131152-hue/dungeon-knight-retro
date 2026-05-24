@@ -59,6 +59,8 @@ export class Knight {
         this.statsEnemiesKilled = 0;
         this.statsDamageBlocked = 0;
         this.jumpConsumed = false;
+        this.rollConsumed = false;
+        this.attackConsumed = false;
 
         // Mecánica de Gancho (Grappling Hook)
         this.isHooked = false;
@@ -203,25 +205,39 @@ export class Knight {
         }
 
         // 5. Rodar / Esquivar (Tecla L, o botón virtual)
-        if (input.roll && this.isGrounded && !this.isRolling && this.stamina >= 35 && !this.isAttacking) {
-            this.isRolling = true;
-            this.isCrouching = false;
-            this.rollTimer = this.rollDuration;
-            this.stamina -= 35;
-            this.height = this.baseHeight * 0.55; // Agachado al rodar
-            audio.playJump(); // Sonido rápido de esquiva
-            particles.spawnDust(this.x + this.width/2, this.y + this.height, 4);
+        if (input.roll) {
+            if (!this.rollConsumed) {
+                if (this.isGrounded && !this.isRolling && this.stamina >= 35 && !this.isAttacking) {
+                    this.isRolling = true;
+                    this.isCrouching = false;
+                    this.rollTimer = this.rollDuration;
+                    this.stamina -= 35;
+                    this.height = this.baseHeight * 0.55; // Agachado al rodar
+                    audio.playJump(); // Sonido rápido de esquiva
+                    particles.spawnDust(this.x + this.width/2, this.y + this.height, 4);
+                    this.rollConsumed = true; // Consumido hasta que suelte el botón
+                }
+            }
+        } else {
+            this.rollConsumed = false; // Resetear cuando se suelta el botón
         }
 
         // 6. Atacar (Tecla J, click, o botón virtual)
-        if (input.attack && !this.isAttacking && !this.isBlocking && !this.isRolling && this.attackCooldown <= 0) {
-            this.isAttacking = true;
-            this.attackTimer = this.attackDuration;
-            this.attackCooldown = 22; // Cooldown de ataque
-            audio.playSwordSwing();
-            
-            // Impulso hacia adelante en ataque
-            this.vx += this.facing * 2.0;
+        if (input.attack) {
+            if (!this.attackConsumed) {
+                if (!this.isAttacking && !this.isBlocking && !this.isRolling && this.attackCooldown <= 0) {
+                    this.isAttacking = true;
+                    this.attackTimer = this.attackDuration;
+                    this.attackCooldown = 22; // Cooldown de ataque
+                    audio.playSwordSwing();
+                    
+                    // Impulso hacia adelante en ataque
+                    this.vx += this.facing * 2.0;
+                    this.attackConsumed = true; // Consumido hasta que suelte el botón
+                }
+            }
+        } else {
+            this.attackConsumed = false; // Resetear cuando se suelta el botón
         }
 
         // Aplicar Gravedad
