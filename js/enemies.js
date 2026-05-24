@@ -94,6 +94,43 @@ export class LootItem {
             ctx.fillRect(-3, -2, 6, 5);
             ctx.fillStyle = '#ffffff'; // Destello del cristal
             ctx.fillRect(-2, -2, 2, 2);
+        } else if (this.type === 'great_heart') {
+            // Dibujar Poción de Vida Mayor Morada/Azul
+            ctx.fillStyle = '#111'; // Tapón
+            ctx.fillRect(-2, -7, 4, 3);
+            ctx.fillStyle = '#a3a3a3'; // Cristal
+            ctx.strokeRect(-4, -4, 8, 8);
+            
+            ctx.fillStyle = '#6633ff'; // Líquido curativo mayor morado
+            ctx.fillRect(-3, -2, 6, 5);
+            ctx.fillStyle = '#ffffff'; // Destello del cristal
+            ctx.fillRect(-2, -2, 2, 2);
+        } else if (this.type === 'sword') {
+            // Dibujar Espada Legendaria
+            ctx.save();
+            ctx.rotate(Math.PI / 4); // Rotada 45 grados
+
+            // Empuñadura
+            ctx.fillStyle = '#d1a115'; // Oro
+            ctx.fillRect(-1, 5, 2, 4); // Mango
+            ctx.fillRect(-3, 4, 6, 2); // Guarda
+
+            // Hoja templada (Rojo/morado brillante de magma)
+            ctx.fillStyle = '#ff0033'; // Crimson
+            ctx.fillRect(-1.5, -7, 3, 11);
+            
+            // Núcleo brillante
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(-0.5, -6, 1, 10);
+
+            ctx.restore();
+            
+            // Aura brillante a su alrededor
+            ctx.strokeStyle = 'rgba(255, 51, 51, 0.6)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, 9 + Math.sin(this.pulseTime * 2) * 1.5, 0, Math.PI*2);
+            ctx.stroke();
         }
 
         ctx.restore();
@@ -736,9 +773,9 @@ export class FireTrap {
                 particles.spawnCollectGlow(cx + (Math.random() - 0.5) * this.width, this.y - 30, '#ff4500', 1);
             }
 
-            // Colisión con el jugador (daño continuo)
+            // Colisión con el jugador (daño de fuego pesado)
             if (this.checkCollision(player)) {
-                player.takeDamage(0.6, (player.x + player.width/2 > cx ? 1.0 : -1.0), cx);
+                player.takeDamage(10, (player.x + player.width/2 > cx ? 4.0 : -4.0), cx);
             }
         }
     }
@@ -1073,6 +1110,134 @@ export class SkeletonArcher {
             ctx.moveTo(x + 28, y + 22);
             ctx.lineTo(x + 28, y + 44);
             ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+}
+
+// ==========================================================================
+// COFRE DE TESORO (Treasure Chest)
+// ==========================================================================
+export class TreasureChest {
+    constructor(x, y, contentType = 'coins') {
+        this.x = x;
+        this.y = y;
+        this.width = 36;
+        this.height = 30;
+        this.opened = false;
+        this.contentType = contentType; // 'coins' o 'potion' o 'great_potion'
+    }
+
+    open() {
+        if (this.opened) return null;
+        this.opened = true;
+        audio.playBonfire(); // Sonido mágico de apertura!
+        
+        // Generar chispas de colores
+        particles.spawnSparks(this.x + this.width/2, this.y + this.height/2, 15, 0);
+        
+        const items = [];
+        if (this.contentType === 'coins') {
+            // Un botín abundante de monedas
+            const coinsCount = 10 + Math.floor(Math.random() * 6); // 10 a 15 monedas
+            for (let i = 0; i < coinsCount; i++) {
+                items.push(new LootItem(this.x + this.width/2 - 8, this.y - 10, 'coin'));
+            }
+        } else if (this.contentType === 'potion') {
+            // Una única poción menor
+            items.push(new LootItem(this.x + this.width/2 - 8, this.y - 10, 'heart'));
+        } else if (this.contentType === 'great_potion') {
+            // Una poción mayor (se usa en el cofre legendario final de nivel 4)
+            items.push(new LootItem(this.x + this.width/2 - 8, this.y - 10, 'great_heart'));
+        } else if (this.contentType === 'legendary_sword') {
+            // La Espada Legendaria final
+            items.push(new LootItem(this.x + this.width/2 - 8, this.y - 10, 'sword'));
+        }
+        return items;
+    }
+
+    draw(ctx) {
+        ctx.save();
+        
+        // Sombra
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(this.x + 2, this.y + this.height - 3, this.width - 4, 4);
+
+        if (!this.opened) {
+            // Cofre Cerrado (Madera con adornos dorados)
+            ctx.fillStyle = '#5c3a21'; // Madera oscura
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            
+            ctx.strokeStyle = '#ffd700'; // Bordes dorados góticos
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(this.x, this.y, this.width, this.height);
+            
+            // Cerradura retro de metal
+            ctx.fillStyle = '#222';
+            ctx.fillRect(this.x + this.width/2 - 4, this.y + 10, 8, 8);
+            ctx.fillStyle = '#ffd700';
+            ctx.fillRect(this.x + this.width/2 - 2, this.y + 12, 4, 4);
+        } else {
+            // Cofre Abierto
+            // Tapa inclinada hacia atrás
+            ctx.fillStyle = '#442816';
+            ctx.fillRect(this.x, this.y - 10, this.width, 10);
+            ctx.strokeStyle = '#b89700';
+            ctx.strokeRect(this.x, this.y - 10, this.width, 10);
+            
+            // Oro/luz brillando en el interior
+            ctx.fillStyle = '#ffd700';
+            ctx.fillRect(this.x + 2, this.y, this.width - 4, 6);
+            
+            // Caja base
+            ctx.fillStyle = '#5c3a21';
+            ctx.fillRect(this.x, this.y + 6, this.width, this.height - 6);
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(this.x, this.y + 6, this.width, this.height - 6);
+        }
+
+        ctx.restore();
+    }
+}
+
+// ==========================================================================
+// PUERTA SECRETA (Secret Door - Entrada al nivel 4)
+// ==========================================================================
+export class SecretDoor {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 40;
+        this.height = 60;
+        this.active = true;
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        ctx.save();
+
+        // Arco gótico de piedra con portal morado
+        ctx.fillStyle = '#100518'; // Portal oscuro
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+
+        ctx.strokeStyle = '#b642f5'; // Borde morado brillante
+        ctx.lineWidth = 3;
+        ctx.strokeRect(this.x, this.y, this.width, this.height);
+
+        // Arco interior de piedra
+        ctx.strokeStyle = '#5f2b8a';
+        ctx.beginPath();
+        ctx.arc(this.x + this.width/2, this.y + 20, 18, Math.PI, 0);
+        ctx.stroke();
+
+        // Runas flickeando
+        if (Math.random() > 0.4) {
+            ctx.fillStyle = '#d473ff';
+            ctx.fillRect(this.x + 10, this.y + 25, 4, 4);
+            ctx.fillRect(this.x + 26, this.y + 35, 4, 4);
+            ctx.fillRect(this.x + 18, this.y + 45, 4, 4);
         }
 
         ctx.restore();

@@ -241,6 +241,15 @@ export class SkeletonBoss {
 
         // Ejecutar comportamiento continuo de cada estado
         this.executeStateBehavior(player, floorY);
+
+        // Clampar posición y velocidad dentro de los límites de la arena
+        if (this.x < arenaLeft) {
+            this.x = arenaLeft;
+            this.vx = 0;
+        } else if (this.x + this.width > arenaRight) {
+            this.x = arenaRight - this.width;
+            this.vx = 0;
+        }
     }
 
     chooseNextState(player, floorY) {

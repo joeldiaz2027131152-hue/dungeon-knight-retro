@@ -12,18 +12,26 @@ class RetroAudio {
 
     // Inicialización perezosa (los navegadores bloquean el audio hasta que haya interacción)
     init() {
-        if (!this.ctx) {
-            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (this.ctx.state === 'suspended') {
-            this.ctx.resume();
+        try {
+            if (!this.ctx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    this.ctx = new AudioContextClass();
+                }
+            }
+            if (this.ctx && this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+        } catch (e) {
+            console.warn("Web Audio API is not supported or was blocked:", e);
+            this.ctx = null;
         }
     }
 
     // Efecto de Sonido: Salto (Pitch ascendente rápido con onda cuadrada)
     playJump() {
         this.init();
-        if (this.isMuted) return;
+        if (this.isMuted || !this.ctx) return;
 
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -46,7 +54,7 @@ class RetroAudio {
     // Efecto de Sonido: Espadazo / Ataque (Ruido blanco filtrado rápido)
     playSwordSwing() {
         this.init();
-        if (this.isMuted) return;
+        if (this.isMuted || !this.ctx) return;
 
         const bufferSize = this.ctx.sampleRate * 0.12; // 0.12 segundos
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
@@ -80,7 +88,7 @@ class RetroAudio {
     // Efecto de Sonido: Bloqueo de Escudo (Tono metálico agudo y decaimiento rápido)
     playBlock() {
         this.init();
-        if (this.isMuted) return;
+        if (this.isMuted || !this.ctx) return;
 
         const now = this.ctx.currentTime;
         const osc1 = this.ctx.createOscillator();
@@ -112,7 +120,7 @@ class RetroAudio {
     // Efecto de Sonido: Cajas de Madera Rompiéndose (Ruido sordo con filtro de paso bajo)
     playCrateBreak() {
         this.init();
-        if (this.isMuted) return;
+        if (this.isMuted || !this.ctx) return;
 
         const now = this.ctx.currentTime;
         const duration = 0.25;
@@ -162,7 +170,7 @@ class RetroAudio {
     // Efecto de Sonido: Hoguera Encendiéndose (Arpegio mágico ascendente rápido)
     playBonfire() {
         this.init();
-        if (this.isMuted) return;
+        if (this.isMuted || !this.ctx) return;
 
         const now = this.ctx.currentTime;
         const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50]; // Acorde Do Mayor ascendente
@@ -191,7 +199,7 @@ class RetroAudio {
     // Efecto de Sonido: Daño Recibido (Sonido estridente descendente)
     playHit() {
         this.init();
-        if (this.isMuted) return;
+        if (this.isMuted || !this.ctx) return;
 
         const now = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
@@ -214,7 +222,7 @@ class RetroAudio {
     // Efecto de Sonido: Muerte (Caída de frecuencia trágica en bajos)
     playDeath() {
         this.init();
-        if (this.isMuted) return;
+        if (this.isMuted || !this.ctx) return;
 
         const now = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
@@ -244,7 +252,7 @@ class RetroAudio {
     // Fanfarria de Victoria (Melodía de triunfo glorioso chiptune)
     playWin() {
         this.init();
-        if (this.isMuted) return;
+        if (this.isMuted || !this.ctx) return;
 
         const now = this.ctx.currentTime;
         // Melodía épica retro en Do Mayor
@@ -296,6 +304,7 @@ class RetroAudio {
     startMusic() {
         this.init();
         if (this.musicPlaying) return;
+        if (!this.ctx) return; // Si no hay AudioContext, no iniciar la música
         this.musicPlaying = true;
 
         let step = 0;

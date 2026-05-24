@@ -70,6 +70,15 @@ export class Knight {
         this.hookY = 0;
         this.hookTargetPlat = null;
         this.platformDropTimer = 0;
+
+        // Mecánica de Ataque Cargado
+        this.chargeTimer = 0;
+        this.chargeDuration = 60; // 60 frames = 1 segundo
+        this.isChargedStriking = false;
+
+        // Armas e inventario
+        this.weapon = 'rusty'; // 'rusty' o 'legendary'
+        this.hasLegendarySword = false;
     }
 
     update(input) {
@@ -150,6 +159,7 @@ export class Knight {
             this.attackTimer--;
             if (this.attackTimer <= 0) {
                 this.isAttacking = false;
+                this.isChargedStriking = false;
             }
         }
 
@@ -238,8 +248,30 @@ export class Knight {
                     this.vx += this.facing * 2.0;
                     this.attackConsumed = true; // Consumido hasta que suelte el botón
                 }
+            } else {
+                // Si ya está consumido (botón presionado de forma continua), acumular carga
+                if (!this.isRolling && !this.isBlocking && !this.isCrouching && this.hp > 0) {
+                    this.chargeTimer++;
+                    if (this.chargeTimer >= this.chargeDuration) {
+                        this.chargeTimer = this.chargeDuration; // Limitar al máximo
+                        // Emitir destellos dorados si está completamente cargado
+                        if (Math.random() < 0.15) {
+                            particles.spawnCollectGlow(this.x + this.width/2, this.y + this.height/2, '#ffd700', 1);
+                        }
+                    } else {
+                        // Partículas celestes mientras carga
+                        if (Math.random() < 0.1) {
+                            particles.spawnCollectGlow(this.x + this.width/2, this.y + this.height/2, '#00ffcc', 1);
+                        }
+                    }
+                }
             }
         } else {
+            // Si suelta el botón y estaba completamente cargado, desatar ataque cargado!
+            if (this.chargeTimer >= this.chargeDuration) {
+                this.triggerChargedAttack();
+            }
+            this.chargeTimer = 0;
             this.attackConsumed = false; // Resetear cuando se suelta el botón
         }
 
@@ -270,16 +302,52 @@ export class Knight {
         }
     }
 
+    // Desatar Ataque Cargado
+    triggerChargedAttack() {
+        if (this.stamina < 20 || this.isRolling || this.isBlocking || this.hp <= 0) {
+            particles.addFloatingText(this.x + this.width/2, this.y - 20, "NO STAMINA", "#ff3333", 9);
+            return;
+        }
+        this.stamina = 0; // Consumir TODA la estamina
+        this.isAttacking = true;
+        this.isChargedStriking = true; // Activar estado cargado
+        this.attackTimer = 18; // Duración ligeramente mayor
+        this.attackCooldown = 30; // Mayor cooldown
+        this.hitTargets = []; // Limpiar enemigos golpeados
+        
+        audio.playDeath(); // Sonido profundo de impacto (reutilizado de forma retro)
+        
+        // Fuerte impulso hacia adelante
+        this.vx += this.facing * 5.5;
+        this.vy = -1.5; // Pequeño impulso aéreo
+        
+        particles.addFloatingText(this.x + this.width/2, this.y - 25, "CHARGED SLASH!", "#ffd700", 12, true);
+        
+        // Sacudir la pantalla
+        this.shouldTriggerShake = true;
+        
+        // Explosión masiva de chispas doradas al frente
+        particles.spawnSparks(this.x + (this.facing === 1 ? this.width : 0), this.y + this.height/2, 20, this.facing);
+    }
+
     // Ataque Hitbox (Caja de ataque frente al caballero)
     getAttackHitbox() {
-        if (!this.isAttacking || this.attackTimer < 4 || this.attackTimer > 12) {
+        // Para ataques cargados, la ventana de impacto es un poco más larga (entre 4 y 15 frames)
+        const maxFrame = this.isChargedStriking ? 15 : 12;
+        if (!this.isAttacking || this.attackTimer < 4 || this.attackTimer > maxFrame) {
             return null;
         }
+        
+        // La caja es significativamente más grande para el ataque cargado
+        const hitWidth = this.isChargedStriking ? 75 : 40;
+        const hitHeight = this.isChargedStriking ? this.height + 15 : this.height - 10;
+        const hitY = this.isChargedStriking ? this.y - 10 : this.y + 5;
+        
         return {
-            x: this.facing === 1 ? this.x + this.width - 5 : this.x - 35,
-            y: this.y + 5,
-            width: 40,
-            height: this.height - 10
+            x: this.facing === 1 ? this.x + this.width - 5 : this.x - hitWidth + 5,
+            y: hitY,
+            width: hitWidth,
+            height: hitHeight
         };
     }
 
@@ -440,10 +508,20 @@ export class Knight {
             ctx.globalAlpha = 0.3;
         }
 
-        // Efecto rojo al ser golpeado
+        // Efecto rojo al ser golpeado, o aura al cargar ataque
         if (this.hurtTimer > 0) {
             ctx.shadowColor = '#ff0000';
             ctx.shadowBlur = 10;
+        } else if (this.chargeTimer > 0) {
+            if (this.chargeTimer >= this.chargeDuration) {
+                // Brillo dorado al estar completamente cargado
+                ctx.shadowColor = '#ffd700';
+                ctx.shadowBlur = 12;
+            } else {
+                // Brillo celeste al estar cargando
+                ctx.shadowColor = '#00ffcc';
+                ctx.shadowBlur = 8;
+            }
         }
 
         // Dibujar Sombra en el suelo
@@ -453,6 +531,7 @@ export class Knight {
         ctx.fill();
 
         // Espejado según hacia dónde mire (facing)
+        ctx.save();
         ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
         ctx.scale(this.facing, 1);
 
@@ -467,7 +546,34 @@ export class Knight {
             this.drawNormal(ctx, xOffset, yOffset);
         }
 
-        ctx.restore();
+        ctx.restore(); // restaurar espejo
+        ctx.restore(); // restaurar principal save
+
+        // Dibujar la barra retro de carga arriba del caballero
+        if (this.chargeTimer > 0) {
+            const barW = 32;
+            const barH = 5;
+            const bx = this.x + this.width/2 - barW/2;
+            const by = this.y - 18; // Colocar arriba del hitbox
+            
+            ctx.fillStyle = '#111';
+            ctx.fillRect(bx, by, barW, barH);
+            
+            const progress = this.chargeTimer / this.chargeDuration;
+            const fillW = barW * progress;
+            
+            if (this.chargeTimer >= this.chargeDuration) {
+                // Parpadeo en blanco/dorado al estar lleno
+                ctx.fillStyle = (Math.floor(this.chargeTimer / 4) % 2 === 0) ? '#ffffff' : '#ffd700';
+            } else {
+                ctx.fillStyle = '#00ffcc'; // Celeste de carga
+            }
+            ctx.fillRect(bx, by, fillW, barH);
+            
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(bx, by, barW, barH);
+        }
     }
 
     // Dibujo en estado normal (Parado/Corriendo/Atacando/Bloqueando)
@@ -550,16 +656,29 @@ export class Knight {
             ctx.translate(x + 26, y + 28 + bounce);
             ctx.rotate(Math.PI * 0.15); // Inclinación en descanso
             
-            // Mango dorado
-            ctx.fillStyle = '#d1a115';
-            ctx.fillRect(-2, 0, 4, 6);
-            ctx.fillRect(-6, 0, 12, 2);
-            
-            // Hoja plateada
-            ctx.fillStyle = '#e3e3e3';
-            ctx.fillRect(-2, -26, 4, 26);
-            ctx.fillStyle = '#b0b0b0'; // Filo oscuro
-            ctx.fillRect(0, -26, 2, 26);
+            if (this.weapon === 'legendary') {
+                // Mango de oro
+                ctx.fillStyle = '#d1a115';
+                ctx.fillRect(-2, 0, 4, 6);
+                ctx.fillRect(-8, 0, 16, 2.5); // Guarda más ancha
+                
+                // Hoja roja de energía templada
+                ctx.fillStyle = '#ff0033';
+                ctx.fillRect(-3, -34, 6, 34); // Hoja más larga y ancha
+                ctx.fillStyle = '#ffffff'; // Destello interior
+                ctx.fillRect(-1, -32, 2, 32);
+            } else {
+                // Mango dorado
+                ctx.fillStyle = '#d1a115';
+                ctx.fillRect(-2, 0, 4, 6);
+                ctx.fillRect(-6, 0, 12, 2);
+                
+                // Hoja plateada
+                ctx.fillStyle = '#e3e3e3';
+                ctx.fillRect(-2, -26, 4, 26);
+                ctx.fillStyle = '#b0b0b0'; // Filo oscuro
+                ctx.fillRect(0, -26, 2, 26);
+            }
             ctx.restore();
         }
     }
@@ -647,11 +766,21 @@ export class Knight {
         ctx.rotate(angle);
 
         // Dibujar espada atacando
-        ctx.fillStyle = '#d1a115'; // Mango
-        ctx.fillRect(-2, 0, 4, 8);
-        ctx.fillRect(-8, 8, 16, 3);
-        ctx.fillStyle = '#fff'; // Hoja brillante de ataque
-        ctx.fillRect(-3, -32, 6, 32);
+        if (this.weapon === 'legendary') {
+            ctx.fillStyle = '#d1a115'; // Mango de oro
+            ctx.fillRect(-2, 0, 4, 8);
+            ctx.fillRect(-10, 8, 20, 4); // Guarda más grande
+            ctx.fillStyle = '#ff0033'; // Hoja de energía carmesí
+            ctx.fillRect(-4, -42, 8, 42); // Hoja más larga y ancha
+            ctx.fillStyle = '#fff'; // Filo interior brillante
+            ctx.fillRect(-1.5, -40, 3, 38);
+        } else {
+            ctx.fillStyle = '#d1a115'; // Mango
+            ctx.fillRect(-2, 0, 4, 8);
+            ctx.fillRect(-8, 8, 16, 3);
+            ctx.fillStyle = '#fff'; // Hoja brillante de ataque
+            ctx.fillRect(-3, -32, 6, 32);
+        }
 
         ctx.restore();
 
@@ -659,18 +788,45 @@ export class Knight {
         if (this.attackTimer >= 4 && this.attackTimer <= 11) {
             ctx.save();
             ctx.translate(x + 28, y + 16);
-            ctx.globalAlpha = 0.55;
+            ctx.globalAlpha = 0.7;
             
-            // Gradiente brillante del espadazo
-            const slashGrad = ctx.createRadialGradient(0, 0, 10, 15, 0, 45);
-            slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-            slashGrad.addColorStop(0.5, 'rgba(100, 200, 255, 0.6)');
-            slashGrad.addColorStop(1, 'rgba(0, 100, 255, 0)');
+            // Si es un ataque cargado, el espadazo es dorado y mucho más grande!
+            let slashRadius = this.isChargedStriking ? 58 : 38;
+            if (this.weapon === 'legendary') {
+                slashRadius = this.isChargedStriking ? 75 : 50;
+            }
+            const startAngle = this.isChargedStriking ? -Math.PI * 0.45 : -Math.PI * 0.4;
+            const endAngle = this.isChargedStriking ? Math.PI * 0.45 : Math.PI * 0.4;
+            
+            const slashGrad = ctx.createRadialGradient(0, 0, 10, 15, 0, slashRadius);
+            if (this.weapon === 'legendary') {
+                if (this.isChargedStriking) {
+                    slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.98)'); // Núcleo brillante
+                    slashGrad.addColorStop(0.3, 'rgba(255, 0, 102, 0.9)');   // Rosa neón brillante
+                    slashGrad.addColorStop(0.7, 'rgba(128, 0, 128, 0.7)');   // Púrpura místico
+                    slashGrad.addColorStop(1, 'rgba(255, 0, 0, 0)');          // Rojo desvanecido
+                } else {
+                    slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+                    slashGrad.addColorStop(0.5, 'rgba(200, 0, 100, 0.7)');    // Rosa/Violeta
+                    slashGrad.addColorStop(1, 'rgba(100, 0, 200, 0)');        // Morado profundo
+                }
+            } else {
+                if (this.isChargedStriking) {
+                    slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)'); // Núcleo brillante
+                    slashGrad.addColorStop(0.4, 'rgba(255, 215, 0, 0.85)'); // Dorado intenso
+                    slashGrad.addColorStop(0.8, 'rgba(255, 102, 0, 0.5)');  // Naranja fuego
+                    slashGrad.addColorStop(1, 'rgba(255, 0, 0, 0)');
+                } else {
+                    slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+                    slashGrad.addColorStop(0.5, 'rgba(100, 200, 255, 0.6)');
+                    slashGrad.addColorStop(1, 'rgba(0, 100, 255, 0)');
+                }
+            }
 
             ctx.fillStyle = slashGrad;
             ctx.beginPath();
             // Arco de ataque en dirección de facing
-            ctx.arc(10, 0, 38, -Math.PI * 0.4, Math.PI * 0.4);
+            ctx.arc(10, 0, slashRadius, startAngle, endAngle);
             ctx.lineTo(10, 0);
             ctx.closePath();
             ctx.fill();
