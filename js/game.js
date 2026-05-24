@@ -29,6 +29,7 @@ class Game {
         this.shopHp = document.getElementById('shop-hp');
         this.inventoryBadge = document.getElementById('inventory-badge');
         this.slotPotionQty = document.getElementById('slot-potion-qty');
+        this.slotGreatPotionQty = document.getElementById('slot-great-potion-qty');
 
         // Botones
         this.btnStart = document.getElementById('btn-start');
@@ -41,11 +42,14 @@ class Game {
         this.btnPauseHud = document.getElementById('btn-pause-hud');
         this.btnInventoryHud = document.getElementById('btn-inventory-hud');
         this.btnPotionHud = document.getElementById('btn-potion-hud');
+        this.btnGreatPotionHud = document.getElementById('btn-great-potion-hud');
         this.slotPotion = document.getElementById('slot-potion');
+        this.slotGreatPotion = document.getElementById('slot-great-potion');
         
         // Botones de la tienda
         this.btnShopRest = document.getElementById('btn-shop-rest');
         this.btnShopBuy = document.getElementById('btn-shop-buy');
+        this.btnShopBuyGreat = document.getElementById('btn-shop-buy-great');
         this.btnShopExit = document.getElementById('btn-shop-exit');
         this.btnInteractBonfire = document.getElementById('btn-interact-bonfire');
 
@@ -165,6 +169,13 @@ class Game {
             if (e.code === 'KeyQ' && this.state === 'playing' && !this.isPaused && !this.isShopOpen) {
                 e.preventDefault();
                 this.quickUsePotion();
+                return;
+            }
+
+            // Tecla de Poción Mayor rápida (G)
+            if (e.code === 'KeyG' && this.state === 'playing' && !this.isPaused && !this.isShopOpen) {
+                e.preventDefault();
+                this.quickUseGreatPotion();
                 return;
             }
 
@@ -322,6 +333,7 @@ class Game {
         });
         this.btnShopRest.addEventListener('click', () => this.restAtBonfire());
         this.btnShopBuy.addEventListener('click', () => this.buyPotionFromShop());
+        this.btnShopBuyGreat.addEventListener('click', () => this.buyGreatPotionFromShop());
         this.btnShopExit.addEventListener('click', () => this.closeBonfireShop());
 
         // Botones de Inventario (Bulto)
@@ -333,8 +345,15 @@ class Game {
             e.stopPropagation();
             this.quickUsePotion();
         });
+        this.btnGreatPotionHud.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.quickUseGreatPotion();
+        });
         this.slotPotion.addEventListener('click', () => {
             this.quickUsePotion();
+        });
+        this.slotGreatPotion.addEventListener('click', () => {
+            this.quickUseGreatPotion();
         });
     }
 
@@ -1456,11 +1475,17 @@ class Game {
 
         // Sincronizar Bulto (Inventario)
         if (this.player) {
-            this.inventoryBadge.innerText = this.player.potions;
+            const totalPotions = this.player.potions + this.player.greatPotions;
+            this.inventoryBadge.innerText = totalPotions;
             this.slotPotionQty.innerText = 'x' + this.player.potions;
+            this.slotGreatPotionQty.innerText = 'x' + this.player.greatPotions;
             
-            // Si no tiene pociones, atenuar el contador
-            this.inventoryBadge.style.opacity = (this.player.potions === 0) ? '0.3' : '1.0';
+            // Si no tiene pociones en total, atenuar el bulto
+            this.inventoryBadge.style.opacity = (totalPotions === 0) ? '0.3' : '1.0';
+
+            // Atenuar botones rápidos del HUD si no hay existencias
+            this.btnPotionHud.style.opacity = (this.player.potions === 0) ? '0.3' : '1.0';
+            this.btnGreatPotionHud.style.opacity = (this.player.greatPotions === 0) ? '0.3' : '1.0';
         }
     }
 
@@ -1580,6 +1605,30 @@ class Game {
         this.updateShopDetails();
     }
 
+    buyGreatPotionFromShop() {
+        if (this.player.hp <= 0) return;
+
+        // Validar si tiene suficientes monedas (Cuesta 20 monedas)
+        const greatPotionCost = 20;
+        if (this.player.coins < greatPotionCost) {
+            // No tiene monedas suficientes: reproducir sonido sordo
+            audio.playHit();
+            particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 15, "NO COINS!", "#ffd700", 11, true);
+            return;
+        }
+
+        // Realizar compra (se añade al bulto)
+        this.player.coins -= greatPotionCost;
+        this.player.greatPotions++;
+        
+        audio.playBonfire(); // Sonido mágico
+        particles.spawnCollectGlow(this.player.x + this.player.width/2, this.player.y + this.player.height/2, '#aa55ff', 15);
+        particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 15, "+1 POCIÓN MAYOR", "#aa55ff", 11, true);
+        
+        this.updateHud();
+        this.updateShopDetails();
+    }
+
     toggleInventory() {
         if (this.state !== 'playing' || this.isPaused) return;
         
@@ -1610,6 +1659,33 @@ class Game {
 
         // Usar poción
         const success = this.player.usePotion();
+        if (success) {
+            this.updateHud();
+            // Actualizar tienda de hoguera si estuviera abierta
+            if (this.isShopOpen) {
+                this.updateShopDetails();
+            }
+        }
+    }
+
+    quickUseGreatPotion() {
+        if (this.state !== 'playing' || this.isPaused) return;
+
+        if (this.player.greatPotions <= 0) {
+            // No tiene pociones: sonido de aviso y texto flotante
+            audio.playHit();
+            particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 15, "SIN POCIONES MAYORES!", "#ff3333", 9, true);
+            return;
+        }
+
+        if (this.player.hp >= this.player.maxHp) {
+            // HP ya al máximo
+            particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 15, "VIDA LLENA!", "#00ff66", 9, false);
+            return;
+        }
+
+        // Usar poción mayor
+        const success = this.player.useGreatPotion();
         if (success) {
             this.updateHud();
             // Actualizar tienda de hoguera si estuviera abierta

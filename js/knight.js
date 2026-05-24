@@ -30,6 +30,7 @@ export class Knight {
         this.stamina = 100;
         this.coins = 0;
         this.potions = 1;
+        this.greatPotions = 0;
 
         // Estado del juego
         this.isGrounded = false;
@@ -340,12 +341,21 @@ export class Knight {
         particles.addFloatingText(this.x + this.width/2, this.y - 15, `+${amount} HP`, "#00ff66", 11);
     }
 
-    // Beber poción del bulto (inventario)
+    // Beber poción menor del bulto
     usePotion() {
         if (this.hp <= 0 || this.potions <= 0) return false;
         
         this.potions--;
-        this.heal(35); // Cura 35 HP
+        this.heal(25); // Cura 25% de la vida (25 HP)
+        return true;
+    }
+
+    // Beber poción mayor del bulto
+    useGreatPotion() {
+        if (this.hp <= 0 || this.greatPotions <= 0) return false;
+        
+        this.greatPotions--;
+        this.heal(65); // Cura 65% de la vida (65 HP)
         return true;
     }
 

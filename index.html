@@ -39,8 +39,10 @@
             </div>
             
             <div class="hud-right" style="position: relative; pointer-events: auto;">
-                <!-- Botón de Usar Poción Rápida -->
-                <button id="btn-potion-hud" class="hud-pause-btn" style="background-color: rgba(255, 51, 102, 0.15); border-color: #ff3366; position: relative;" title="Beber Poción (Q)">🧪</button>
+                <!-- Botón de Usar Poción Mayor Rápida -->
+                <button id="btn-great-potion-hud" class="hud-pause-btn" style="background-color: rgba(102, 51, 255, 0.15); border-color: #6633ff; position: relative;" title="Poción Mayor (G)"><span style="filter: hue-rotate(240deg);">🧪</span></button>
+                <!-- Botón de Usar Poción Menor Rápida -->
+                <button id="btn-potion-hud" class="hud-pause-btn" style="background-color: rgba(255, 51, 102, 0.15); border-color: #ff3366; position: relative;" title="Poción Menor (Q)">🧪</button>
                 <!-- Botón de Bulto (Inventario) -->
                 <button id="btn-inventory-hud" class="hud-pause-btn" style="position: relative;">🎒<span id="inventory-badge" style="font-size: 8px; color: var(--gold); font-weight: bold; position: absolute; bottom: 2px; right: 2px; text-shadow: 1px 1px 1px #000;">1</span></button>
                 <!-- Botón de Pausa -->
@@ -55,14 +57,17 @@
                 <div id="inventory-popup" class="inventory-popup-box hidden">
                     <div class="inventory-popup-title">EL BULTO</div>
                     <div class="inventory-grid">
-                        <div id="slot-potion" class="inventory-slot active-slot">
+                        <div id="slot-potion" class="inventory-slot active-slot" title="Poción Menor (Cura 25%)">
                             <span class="slot-icon">🧪</span>
                             <span id="slot-potion-qty" class="slot-qty">x1</span>
                         </div>
-                        <div class="inventory-slot empty-slot"><span class="slot-icon" style="opacity: 0.15;">🗡️</span></div>
+                        <div id="slot-great-potion" class="inventory-slot active-slot" title="Poción Mayor (Cura 65%)">
+                            <span class="slot-icon" style="filter: hue-rotate(240deg);">🧪</span>
+                            <span id="slot-great-potion-qty" class="slot-qty">x0</span>
+                        </div>
                         <div class="inventory-slot empty-slot"><span class="slot-icon" style="opacity: 0.15;">🛡️</span></div>
                     </div>
-                    <div class="inventory-popup-desc">🧪 POCIÓN DE VIDA<br><span style="font-size: 6px; color: #a0a0b0; display: block; margin-top: 4px;">Toca para tomar (+35 HP)</span></div>
+                    <div class="inventory-popup-desc">🧪 ALFORJA MÁGICA<br><span style="font-size: 6px; color: #a0a0b0; display: block; margin-top: 4px;">Menor (Q: Cura 25%) | Mayor (G: Cura 65%)</span></div>
                 </div>
             </div>
 
@@ -160,9 +165,10 @@
                 <p>Tu HP actual: <span id="shop-hp" style="color: #ff3333;">100 / 100</span></p>
             </div>
 
-            <div class="menu-buttons-vertical">
+            <div class="menu-buttons-vertical" style="width: 320px;">
                 <button id="btn-shop-rest" class="btn-retro">🔥 DESCANSAR (GRATIS - CURA 100%)</button>
-                <button id="btn-shop-buy" class="btn-retro">🧪 COMPRAR POCIÓN (AL BULTO - CUESTA 10 🪙)</button>
+                <button id="btn-shop-buy" class="btn-retro">🧪 POCIÓN MENOR (CURA 25% - CUESTA 10 🪙)</button>
+                <button id="btn-shop-buy-great" class="btn-retro">🧪 POCIÓN MAYOR (CURA 65% - CUESTA 20 🪙)</button>
                 <button id="btn-shop-exit" class="btn-retro" style="background-color: #2a1515; border-color: #3e2723;">VOLVER AL CAMINO</button>
             </div>
         </div>
