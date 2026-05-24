@@ -1517,77 +1517,8 @@ class Game {
         this.player.hp = this.player.maxHp;
         this.player.stamina = this.player.maxStamina;
         
-        if (this.level === 1) {
-            // ¡REAPARECER TODOS LOS ENEMIGOS Y COFRES EN EL NIVEL 1 ESTILO DARK SOULS!
-            this.crates = [];
-            this.crates.push(new Crate(250, this.floorY - 38));
-            this.crates.push(new Crate(720, this.floorY - 38));
-            this.crates.push(new Crate(1080, this.floorY - 38));
-            this.crates.push(new Crate(1080, this.floorY - 76)); // Doble caja apilada
-            this.crates.push(new Crate(1550, this.floorY - 38));
-            this.crates.push(new Crate(1850, this.floorY - 38));
-
-            this.bats = [];
-            this.bats.push(new BatEnemy(350, this.floorY - 90));
-            this.bats.push(new BatEnemy(800, this.floorY - 110));
-            this.bats.push(new BatEnemy(1350, this.floorY - 120));
-            this.bats.push(new BatEnemy(1950, this.floorY - 100));
-
-            this.skeletons = [];
-            this.skeletons.push(new SkeletonMinion(660, this.floorY - 54));
-            this.skeletons.push(new SkeletonMinion(1150, this.floorY - 54));
-            this.skeletons.push(new SkeletonMinion(1500, this.floorY - 54));
-            this.skeletons.push(new SkeletonMinion(2050, this.floorY - 54));
-
-            // Reaparecer y resetear también todos los obstáculos del nivel 1 (Picos y Cuchillas Pendulares)
-            this.spikes = [];
-            this.spikes.push(new Spikes(460, this.floorY - 20, 2));
-            this.spikes.push(new Spikes(900, this.floorY - 20, 3));
-            this.spikes.push(new Spikes(1400, this.floorY - 20, 2));
-            this.spikes.push(new Spikes(1750, this.floorY - 20, 4));
-
-            this.blades = [];
-            this.blades.push(new CeilingBlade(600, 20, 260));
-            this.blades.push(new CeilingBlade(1250, 20, 280));
-            this.blades.push(new CeilingBlade(1650, 20, 260));
-        } else if (this.level === 2) {
-            // ¡REAPARECER TODO EN EL NIVEL 2 ESTILO DARK SOULS!
-            this.crates = [];
-            this.crates.push(new Crate(320, 302)); // Plataforma 1
-            this.crates.push(new Crate(540, 172)); // Plataforma 2
-            this.crates.push(new Crate(820, 252)); // Plataforma 3
-            this.crates.push(new Crate(1400, 242)); // Plataforma 5
-            this.crates.push(new Crate(100, this.floorY - 38)); // Suelo
-            this.crates.push(new Crate(1300, this.floorY - 38)); // Suelo
-
-            this.bats = [];
-            this.bats.push(new BatEnemy(400, 120));
-            this.bats.push(new BatEnemy(850, 150));
-            this.bats.push(new BatEnemy(1200, 110));
-            this.bats.push(new BatEnemy(1700, 130));
-
-            this.skeletons = [];
-            this.skeletons.push(new SkeletonMinion(680, this.floorY - 54));
-            this.skeletons.push(new SkeletonMinion(1400, this.floorY - 54));
-
-            this.spikes = [];
-            this.spikes.push(new Spikes(700, this.floorY - 20, 2));
-            this.spikes.push(new Spikes(1650, this.floorY - 20, 3));
-
-            this.archers = [];
-            this.archers.push(new SkeletonArcher(520, 210 - 54)); // Plataforma 2
-            this.archers.push(new SkeletonArcher(1080, 180 - 54)); // Plataforma 4
-            this.archers.push(new SkeletonArcher(1620, 190 - 54)); // Plataforma 6
-            this.archers.push(new SkeletonArcher(900, this.floorY - 54));
-
-            this.arrows = []; // Limpiar flechas volando
-
-            // Resetear trampas de fuego
-            this.fireTraps.forEach(ft => {
-                ft.state = 0;
-                ft.timer = 0;
-            });
-        }
+        // Reaparecer todos los enemigos, trampas, plataformas y cajas llamando a initLevel para el nivel actual
+        this.initLevel(this.level);
 
         this.lootItems = []; // Limpiar monedas sueltas antiguas
         

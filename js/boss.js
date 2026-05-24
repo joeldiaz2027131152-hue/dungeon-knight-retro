@@ -17,7 +17,7 @@ export class BossProjectile {
         this.vx = vx;
         this.vy = vy;
         this.active = true;
-        this.damage = 10;
+        this.damage = 6;
         this.life = 180; // ~3 segundos
         this.pulseTime = 0;
     }
@@ -80,7 +80,7 @@ export class Shockwave {
         this.height = 36; // Alta para obligar a saltar bien alto
         this.vx = direction * 5.0; // Velocidad de avance
         this.active = true;
-        this.damage = 15;
+        this.damage = 10;
         this.life = 120; // Recorrido de ~2 segundos
     }
 
@@ -139,8 +139,8 @@ export class SkeletonBoss {
         this.height = 135;
 
         // Vida masiva del boss
-        this.maxHp = 500;
-        this.hp = 500;
+        this.maxHp = 300;
+        this.hp = 300;
         
         // Fases
         this.phase = 1; // Fase 1 normal, Fase 2 furia roja por debajo de 50% HP
@@ -383,7 +383,7 @@ export class SkeletonBoss {
 
         if (distToImpact < hammerHitRange && player.y + player.height >= floorY - 15) {
             // El jugador es dañado e impulsado
-            player.takeDamage(22, this.facing * 6.0, impactX);
+            player.takeDamage(14, this.facing * 6.0, impactX);
         }
 
         // Si está en Fase 2, ¡generar dos ondas de choque sísmicas laterales!
@@ -446,7 +446,7 @@ export class SkeletonBoss {
 
         if (dist < 90 && player.y + player.height >= floorY - 30) {
             // Daño brutal y knockback extremo
-            player.takeDamage(30, (player.x < impactX ? -1 : 1) * 8.0, impactX);
+            player.takeDamage(18, (player.x < impactX ? -1 : 1) * 8.0, impactX);
         }
     }
 
