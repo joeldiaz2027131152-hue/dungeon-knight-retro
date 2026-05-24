@@ -916,7 +916,8 @@ class Game {
         if (attackBox) {
             // Atacar Cajas Rompibles
             this.crates.forEach(c => {
-                if (c.active && this.checkAABBCollision(attackBox, c)) {
+                if (c.active && !this.player.hitTargets.includes(c) && this.checkAABBCollision(attackBox, c)) {
+                    this.player.hitTargets.push(c);
                     const loot = c.takeDamage();
                     this.player.statsCratesBroken++;
                     this.freezeTimer = 5; // hit stop
@@ -926,16 +927,19 @@ class Game {
 
             // Atacar Murciélagos
             this.bats.forEach(b => {
-                if (b.active && this.checkAABBCollision(attackBox, b)) {
-                    b.takeDamage();
+                if (b.active && !this.player.hitTargets.includes(b) && this.checkAABBCollision(attackBox, b)) {
+                    this.player.hitTargets.push(b);
+                    const loot = b.takeDamage();
                     this.player.statsEnemiesKilled++;
                     this.freezeTimer = 4;
+                    if (loot) this.lootItems.push(loot);
                 }
             });
 
             // Atacar Esqueletos Pequeños
             this.skeletons.forEach(s => {
-                if (s.active && this.checkAABBCollision(attackBox, s)) {
+                if (s.active && !this.player.hitTargets.includes(s) && this.checkAABBCollision(attackBox, s)) {
+                    this.player.hitTargets.push(s);
                     const loot = s.takeDamage(30); // Daño directo con espada
                     if (s.hp <= 0) this.player.statsEnemiesKilled++;
                     this.freezeTimer = 6;
@@ -945,7 +949,8 @@ class Game {
 
             // Atacar Esqueletos Arqueros (Nivel 2)
             this.archers.forEach(a => {
-                if (a.active && this.checkAABBCollision(attackBox, a)) {
+                if (a.active && !this.player.hitTargets.includes(a) && this.checkAABBCollision(attackBox, a)) {
+                    this.player.hitTargets.push(a);
                     const loot = a.takeDamage(30);
                     if (a.hp <= 0) this.player.statsEnemiesKilled++;
                     this.freezeTimer = 6;
@@ -954,8 +959,9 @@ class Game {
             });
 
             // Atacar al Jefe Gigante (Nivel 3)
-            if (this.level === 3 && this.boss && this.boss.hp > 0) {
+            if (this.level === 3 && this.boss && this.boss.hp > 0 && !this.player.hitTargets.includes(this.boss)) {
                 if (this.checkAABBCollision(attackBox, this.boss)) {
+                    this.player.hitTargets.push(this.boss);
                     this.boss.takeDamage(15);
                     this.freezeTimer = 7;
                 }
@@ -963,12 +969,20 @@ class Game {
         }
 
         // 7. Actualizar Ítems del Suelo (Monedas/Curas que caen)
+        // Caja de colisión virtual para recoger monedas (siempre usa la altura base completa y se asegura de tocar el suelo si el jugador está en el suelo o plataforma)
+        const virtualPlayerBox = {
+            x: this.player.x,
+            y: this.player.y - 15,
+            width: this.player.width,
+            height: this.player.baseHeight + 25
+        };
+
         for (let i = this.lootItems.length - 1; i >= 0; i--) {
             const item = this.lootItems[i];
             item.update(this.floorY);
 
             // Colisión / Recolectar por el caballero
-            if (this.checkAABBCollision(this.player, item)) {
+            if (this.checkAABBCollision(virtualPlayerBox, item)) {
                 if (item.type === 'coin') {
                     this.player.addCoin();
                 } else if (item.type === 'heart') {

@@ -61,6 +61,7 @@ export class Knight {
         this.jumpConsumed = false;
         this.rollConsumed = false;
         this.attackConsumed = false;
+        this.hitTargets = [];
 
         // Mecánica de Gancho (Grappling Hook)
         this.isHooked = false;
@@ -229,6 +230,7 @@ export class Knight {
                     this.isAttacking = true;
                     this.attackTimer = this.attackDuration;
                     this.attackCooldown = 22; // Cooldown de ataque
+                    this.hitTargets = []; // Limpiar lista de enemigos golpeados en esta ráfaga
                     audio.playSwordSwing();
                     
                     // Impulso hacia adelante en ataque

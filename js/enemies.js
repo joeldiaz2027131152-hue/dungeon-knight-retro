@@ -380,12 +380,15 @@ export class BatEnemy {
     }
 
     takeDamage() {
-        if (!this.active) return;
+        if (!this.active) return null;
         this.active = false;
         
         audio.playHit();
         particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 8, false);
         particles.addFloatingText(this.x + this.width/2, this.y - 5, "SLAY", "#ff3333");
+
+        // Soltar moneda al morir
+        return new LootItem(this.x + this.width/2 - 8, this.y + this.height/2, 'coin');
     }
 
     draw(ctx) {
