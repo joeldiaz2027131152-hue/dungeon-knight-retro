@@ -624,6 +624,9 @@ class Game {
         // --- Colisiones con Plataformas Flotantes (Nivel 2) ---
         if (this.level === 2) {
             this.platforms.forEach(plat => {
+                // Si el jugador está bajando de la plataforma, ignorar colisiones
+                if (this.player.platformDropTimer > 0) return;
+
                 const playerBottom = this.player.y + this.player.height;
                 if (this.player.x + this.player.width > plat.x &&
                     this.player.x < plat.x + plat.width &&
@@ -631,6 +634,15 @@ class Game {
                     playerBottom - this.player.vy <= plat.y + 8 &&
                     this.player.vy >= 0) {
                     
+                    // Si el jugador presiona agacharse/abajo mientras está en cualquier parte de la plataforma, bajar de ella
+                    if (this.input.down) {
+                        this.player.platformDropTimer = 15; // Ignorar colisión por 15 frames para bajar libremente
+                        this.player.y += 12; // Mover al caballero por debajo del límite de la plataforma
+                        this.player.isGrounded = false;
+                        this.player.vy = 2.0; // Impulso inicial de caída
+                        return;
+                    }
+
                     this.player.y = plat.y - this.player.height;
                     this.player.vy = 0;
                     this.player.isGrounded = true;

@@ -64,6 +64,8 @@ export class Knight {
         this.isHooked = false;
         this.hookX = 0;
         this.hookY = 0;
+        this.hookTargetPlat = null;
+        this.platformDropTimer = 0;
     }
 
     update(input) {
@@ -76,6 +78,7 @@ export class Knight {
         if (this.attackCooldown > 0) this.attackCooldown--;
         if (this.hurtTimer > 0) this.hurtTimer--;
         if (this.invincibleTimer > 0) this.invincibleTimer--;
+        if (this.platformDropTimer > 0) this.platformDropTimer--;
 
         // Manejar Físicas del Gancho
         if (this.isHooked) {
@@ -85,9 +88,21 @@ export class Knight {
             const dy = this.hookY - py;
             const dist = Math.sqrt(dx*dx + dy*dy);
 
-            if (dist < 22) {
-                // Llegamos a la plataforma! Liberar con un pequeño impulso
-                this.releaseHook(true);
+            if (dist < 25) {
+                // ¡Llegamos a la plataforma!
+                // Colocar al caballero parado firmemente encima de ella
+                if (this.hookTargetPlat) {
+                    this.y = this.hookTargetPlat.y - this.height;
+                    this.x = this.hookX - this.width / 2;
+                }
+                this.isHooked = false;
+                this.hookTargetPlat = null;
+                this.vx = 0;
+                this.vy = 0;
+                this.isGrounded = true;
+                
+                audio.playJump(); // Sonido retro suave de llegada
+                particles.spawnDust(this.x + this.width / 2, this.y + this.height, 4);
             } else {
                 // Moverse rápidamente hacia el gancho
                 const pullSpeed = 9.5;
@@ -339,12 +354,12 @@ export class Knight {
         let targetY = 0;
 
         platforms.forEach(plat => {
-            // Buscamos colgarse del borde inferior de la plataforma
+            // Buscamos colgarse de la parte superior de la plataforma
             const platCenterX = plat.x + plat.width / 2;
-            const platBottomY = plat.y + plat.height;
+            const platTopY = plat.y;
 
             const dx = platCenterX - px;
-            const dy = platBottomY - py;
+            const dy = platTopY - py;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
             // Debe estar por encima (dy < 10) y dentro del alcance de 280px
@@ -352,7 +367,7 @@ export class Knight {
                 minDist = dist;
                 closestPlat = plat;
                 targetX = platCenterX;
-                targetY = platBottomY;
+                targetY = platTopY;
             }
         });
 
@@ -360,6 +375,7 @@ export class Knight {
             this.isHooked = true;
             this.hookX = targetX;
             this.hookY = targetY;
+            this.hookTargetPlat = closestPlat; // Guardar referencia de la plataforma objetivo
             audio.playJump(); // Reproducir sonido retro
             
             // Efectos visuales de enganche
@@ -372,6 +388,7 @@ export class Knight {
 
     releaseHook(giveBoost = false) {
         this.isHooked = false;
+        this.hookTargetPlat = null;
         if (giveBoost) {
             this.vy = -7.5; // Impulso hacia arriba espectacular para catapultarse
             audio.playJump();
