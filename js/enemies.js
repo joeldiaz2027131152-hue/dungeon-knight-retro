@@ -343,12 +343,13 @@ export class CeilingBlade {
 // ENEMIGO MURCIÉLAGO (Vuela a altura media, movimiento sinusoidal de patrulla)
 // ==========================================================================
 export class BatEnemy {
-    constructor(x, y) {
+    constructor(x, y, isFireBat = false) {
         this.x = x;
         this.y = y;
         this.baseY = y;
         this.width = 32;
         this.height = 24;
+        this.isFireBat = isFireBat;
         
         this.vx = -1.6; // Empieza volando a la izquierda
         this.sineSpeed = 0.08;
@@ -361,9 +362,14 @@ export class BatEnemy {
         
         this.animFrame = 0;
         this.animTime = 0;
+
+        if (this.isFireBat) {
+            this.fireTimer = Math.random() * 100 + 100; // Cada 3-4 segundos
+            this.damage = 10;
+        }
     }
 
-    update() {
+    update(player, arrows) {
         if (!this.active) return;
 
         // Vuelo sinusoidal
@@ -376,6 +382,40 @@ export class BatEnemy {
         if (this.animTime >= 5) {
             this.animFrame = (this.animFrame + 1) % 3;
             this.animTime = 0;
+        }
+
+        // Lógica de disparo del murciélago de fuego
+        if (this.isFireBat && player && arrows) {
+            this.fireTimer--;
+
+            // Emitir chispitas de fuego pasivas mientras vuela
+            if (this.animTime === 0 && Math.random() > 0.4) {
+                particles.spawnFire(this.x + this.width/2, this.y + this.height/2, 0.5, true);
+            }
+
+            if (this.fireTimer <= 0) {
+                const distToPlayer = Math.abs(this.x - player.x);
+                if (distToPlayer < 450) {
+                    this.fireTimer = Math.random() * 120 + 130; // Reset (3-4 segundos)
+
+                    const fireX = this.x + this.width/2 - 7;
+                    const fireY = this.y + this.height - 4;
+                    const dx = (player.x + player.width/2) - (this.x + this.width/2);
+                    const dirX = dx > 0 ? 1 : -1;
+
+                    // Proyectil diagonal hacia el caballero
+                    const fireVx = dirX * 1.8;
+                    const fireVy = 3.2;
+
+                    arrows.push(new FireballProjectile(fireX, fireY, fireVx, fireVy, 12));
+                    
+                    audio.playHit(); // Sonido retro de disparo
+                    particles.spawnFire(this.x + this.width/2, this.y + this.height, 1.2, true);
+                    particles.addFloatingText(this.x + this.width/2, this.y - 12, "SPIT!", "#ff5500", 8, false);
+                } else {
+                    this.fireTimer = 30; // Volver a chequear pronto si estaba lejos
+                }
+            }
         }
     }
 
@@ -404,23 +444,23 @@ export class BatEnemy {
         ctx.fillRect(-10, 45 - Math.sin(this.sineTimer)*4, 20, 2);
 
         // Dibujar Murciélago Pixelado
-        ctx.fillStyle = '#2b233a'; // Cuerpo morado oscuro
+        ctx.fillStyle = this.isFireBat ? '#e65c00' : '#2b233a'; // Cuerpo naranja de fuego o morado oscuro
         ctx.fillRect(-6, -6, 12, 10);
         
         // Cara y ojos de vampiro brillantes
         ctx.fillStyle = '#111';
         ctx.fillRect(-4, -6, 8, 4);
-        ctx.fillStyle = '#ff0033'; // Ojos rojos
+        ctx.fillStyle = this.isFireBat ? '#ffd700' : '#ff0033'; // Ojos amarillos de fuego o rojos
         ctx.fillRect(-3, -5, 1, 1);
         ctx.fillRect(2, -5, 1, 1);
 
         // Orejas
-        ctx.fillStyle = '#2b233a';
+        ctx.fillStyle = this.isFireBat ? '#e65c00' : '#2b233a';
         ctx.fillRect(-5, -9, 2, 3);
         ctx.fillRect(3, -9, 2, 3);
 
         // Alas de membrana animadas según frame
-        ctx.fillStyle = '#1d1726'; // Interior del ala oscura
+        ctx.fillStyle = this.isFireBat ? '#ff3300' : '#1d1726'; // Alas rojas de lava o membranas oscuras
         if (this.animFrame === 0) {
             // Alas extendidas hacia arriba
             ctx.beginPath();
@@ -789,6 +829,58 @@ export class ArrowProjectile {
         ctx.lineTo(9, 0);
         ctx.lineTo(5, 3);
         ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
+    }
+}
+
+// ==========================================================================
+// PROYECTIL: BOLA DE FUEGO DEL MURCIÉLAGO (Spit fire)
+// ==========================================================================
+export class FireballProjectile {
+    constructor(x, y, vx, vy, damage = 10) {
+        this.x = x;
+        this.y = y;
+        this.width = 14;
+        this.height = 14;
+        this.vx = vx;
+        this.vy = vy;
+        this.damage = damage;
+        this.active = true;
+        this.animTime = 0;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.animTime += 0.2;
+        
+        // Emitir pequeñas partículas de fuego detrás
+        if (Math.random() > 0.4) {
+            particles.spawnFire(this.x + this.width/2, this.y + this.height/2, 0.6);
+        }
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        ctx.save();
+        ctx.translate(this.x + this.width/2, this.y + this.height/2);
+
+        // Halo de fuego palpitante
+        const pulse = 1.0 + Math.sin(this.animTime) * 0.15;
+        ctx.scale(pulse, pulse);
+
+        // Gradiente de fuego radial
+        const grad = ctx.createRadialGradient(0, 0, 1, 0, 0, 7);
+        grad.addColorStop(0, '#ffffff'); // Núcleo blanco
+        grad.addColorStop(0.3, '#ffcc00'); // Amarillo brillante
+        grad.addColorStop(0.7, '#ff3300'); // Naranja fuego
+        grad.addColorStop(1, 'rgba(255, 0, 0, 0)');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, 7, 0, Math.PI*2);
         ctx.fill();
 
         ctx.restore();

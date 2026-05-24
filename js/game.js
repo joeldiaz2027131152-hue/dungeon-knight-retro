@@ -483,11 +483,11 @@ class Game {
             this.archers.push(new SkeletonArcher(1620, 190 - 54)); // Plataforma 6
             this.archers.push(new SkeletonArcher(900, this.floorY - 54)); // Suelo
 
-            // Enemigos voladores (Murciélagos)
-            this.bats.push(new BatEnemy(400, 120));
-            this.bats.push(new BatEnemy(850, 150));
-            this.bats.push(new BatEnemy(1200, 110));
-            this.bats.push(new BatEnemy(1700, 130));
+            // Enemigos voladores (Murciélagos de Fuego en Nivel 2)
+            this.bats.push(new BatEnemy(400, 120, true));
+            this.bats.push(new BatEnemy(850, 150, true));
+            this.bats.push(new BatEnemy(1200, 110, true));
+            this.bats.push(new BatEnemy(1700, 130, true));
 
             // Esqueletos normales patrullando
             this.skeletons.push(new SkeletonMinion(680, this.floorY - 54));
@@ -742,7 +742,7 @@ class Game {
 
             // Actualizar Murciélagos
             this.bats.forEach(bat => {
-                bat.update();
+                bat.update(this.player, this.arrows);
                 // Colisión cuerpo a cuerpo
                 if (bat.active && this.checkAABBCollision(this.player, bat)) {
                     this.player.takeDamage(bat.damage, (this.player.x + this.player.width/2 > bat.x + bat.width/2 ? 3.0 : -3.0), bat.x + bat.width/2);
@@ -854,6 +854,15 @@ class Game {
                         arrow.active = false;
                     }
                 });
+
+                // Colisión con el suelo para proyectiles que caen (bola de fuego)
+                if (arrow.active && arrow.vy > 0 && arrow.y + arrow.height > this.floorY) {
+                    arrow.active = false;
+                    // Spawnea una ráfaga de chispas de fuego al chocar con el suelo
+                    for (let p = 0; p < 8; p++) {
+                        particles.spawnFire(arrow.x + arrow.width / 2, this.floorY, 1.2, true);
+                    }
+                }
 
                 // Descartar si sale de pantalla o inactiva
                 if (arrow.x < 0 || arrow.x > this.levelWidth || !arrow.active) {
