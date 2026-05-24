@@ -755,9 +755,6 @@ class Game {
                         this.shakeTimer = 15;
                         this.shakeIntensity = 2;
                         particles.spawnCollectGlow(this.bonfire.x + this.bonfire.width/2, this.bonfire.y + 40, '#ff6600', 25);
-                        
-                        // Al encenderla por primera vez, abrimos automáticamente el descanso y tienda
-                        this.handleBonfireInteraction();
                     }
                 } else {
                     // Ocultar si estamos lejos
