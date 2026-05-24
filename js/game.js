@@ -37,8 +37,10 @@ class Game {
         this.btnResume = document.getElementById('btn-resume');
         this.btnMute = document.getElementById('btn-mute');
         this.btnPauseRestart = document.getElementById('btn-pause-restart');
+        this.btnPauseMenu = document.getElementById('btn-pause-menu');
         this.btnPauseHud = document.getElementById('btn-pause-hud');
         this.btnInventoryHud = document.getElementById('btn-inventory-hud');
+        this.btnPotionHud = document.getElementById('btn-potion-hud');
         this.slotPotion = document.getElementById('slot-potion');
         
         // Botones de la tienda
@@ -304,6 +306,7 @@ class Game {
         this.btnRespawn.addEventListener('click', () => this.respawnPlayer());
         this.btnRestart.addEventListener('click', () => this.restartGame());
         this.btnPauseRestart.addEventListener('click', () => this.restartGame());
+        this.btnPauseMenu.addEventListener('click', () => this.goToMainMenu());
 
         // Botones de Pausa
         this.btnPauseHud.addEventListener('click', (e) => {
@@ -325,6 +328,10 @@ class Game {
         this.btnInventoryHud.addEventListener('click', (e) => {
             e.stopPropagation();
             this.toggleInventory();
+        });
+        this.btnPotionHud.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.quickUsePotion();
         });
         this.slotPotion.addEventListener('click', () => {
             this.quickUsePotion();
@@ -530,6 +537,24 @@ class Game {
     restartGame() {
         this.domVictory.classList.add('hidden');
         this.startGame();
+    }
+
+    goToMainMenu() {
+        this.state = 'menu';
+        this.isPaused = false;
+        this.isShopOpen = false;
+        
+        audio.stopMusic();
+        
+        this.domPause.classList.add('hidden');
+        this.domGameOver.classList.add('hidden');
+        this.domVictory.classList.add('hidden');
+        this.domBonfireScreen.classList.add('hidden');
+        this.domBonfirePrompt.classList.add('hidden');
+        this.domInventoryPopup.classList.add('hidden');
+        this.domHud.classList.add('hidden');
+        
+        this.domStartMenu.classList.remove('hidden');
     }
 
     triggerGameOver() {
@@ -750,7 +775,6 @@ class Game {
                         this.latestLitBonfire.y = this.floorY - this.player.height;
                         this.latestLitBonfire.lit = true;
 
-                        this.player.heal(this.player.maxHp); // Cura al héroe completamente
                         audio.playBonfire();
                         this.shakeTimer = 15;
                         this.shakeIntensity = 2;
