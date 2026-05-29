@@ -253,6 +253,32 @@ class ParticleSystem {
     addFloatingText(x, y, text, color, fontSize = 10, isCritical = false) {
         this.texts.push(new FloatingText(x, y, text, color, fontSize, isCritical));
     }
+
+    // 8. Hojas que caen flotando para el Mundo 3 (Onda cuadrada/square de tonos otoñales con gravedad baja)
+    spawnLeaf(x, y) {
+        const vx = -0.5 - Math.random() * 1.5; // Viento hacia la izquierda
+        const vy = 0.5 + Math.random() * 1.5;  // Caída suave
+        const size = 3 + Math.random() * 4;
+        const life = 120 + Math.random() * 80;
+        const leafColors = ['#2ecc71', '#27ae60', '#1e824c', '#d35400', '#f39c12']; // Hojas verdes, naranjas y amarillas
+        const color = leafColors[Math.floor(Math.random() * leafColors.length)];
+
+        this.particles.push(new Particle(
+            x, y, vx, vy, size, color, life, 0.015, 0.99, 'square'
+        ));
+    }
+
+    // 9. Lluvia veloz (Líneas finas inclinadas)
+    spawnRain(x, y) {
+        const vx = -1.5 - Math.random() * 0.5; // Inclinada hacia la izquierda
+        const vy = 8 + Math.random() * 4;      // Cae muy rápido
+        const size = 1 + Math.random() * 1.5;  // Grosor de la gota
+        const life = 45 + Math.random() * 20;
+
+        this.particles.push(new Particle(
+            x, y, vx, vy, size, 'rgba(174, 219, 255, 0.4)', life, 0, 1.0, 'line'
+        ));
+    }
 }
 
 export const particles = new ParticleSystem();

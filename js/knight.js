@@ -31,6 +31,16 @@ export class Knight {
         this.coins = 0;
         this.potions = 1;
         this.greatPotions = 0;
+        this.berries = 0;
+        this.violetBerries = 0;
+
+        // Niveles de estadísticas y almas (Mejoras permanentes)
+        this.hpLevel = 1;
+        this.staminaLevel = 1;
+        this.damageLevel = 1;
+        this.redCoins = 0;
+        this.greenCoins = 0;
+        this.greyCoins = 0;
 
         // Estado del juego
         this.isGrounded = false;
@@ -78,13 +88,44 @@ export class Knight {
 
         // Armas e inventario
         this.weapon = 'rusty'; // 'rusty' o 'legendary'
+        this.shield = 'steel'; // 'steel' o 'reinforced'
         this.hasLegendarySword = false;
+        this.hasStormSword = false;
+        this.hasReinforcedShield = false;
+        this.shieldProtectionBonus = 0;
+        this.potionLevel = 1;
+        this.flasks = 0;
+        this.hasForestKey = false;
+        this.hookRangeBonus = 0;
+        this.berryHealBonus = 0;
+        this.thunderRelicReady = false;
+    }
+
+    updateUpgradedStats() {
+        const oldMaxHp = this.maxHp;
+        this.maxHp = 100 + (this.hpLevel - 1) * 20; // 100 a 180 (Nivel 5)
+        if (this.maxHp > oldMaxHp) {
+            this.hp += (this.maxHp - oldMaxHp);
+        }
+
+        const oldMaxStamina = this.maxStamina;
+        this.maxStamina = 100 + (this.staminaLevel - 1) * 15; // 100 a 160
+        if (this.maxStamina > oldMaxStamina) {
+            this.stamina += (this.maxStamina - oldMaxStamina);
+        } else if (this.stamina > this.maxStamina) {
+            this.stamina = this.maxStamina;
+        }
+    }
+
+    getShieldStaminaRegenMultiplier() {
+        return this.shield === 'reinforced' ? 1.05 : 1;
     }
 
     update(input) {
-        // Regenerar Estamina
+        // Regenerar Estamina (Más lenta para incentivar el uso de bayas)
         if (this.stamina < this.maxStamina && !this.isBlocking) {
-            this.stamina = Math.min(this.maxStamina, this.stamina + 0.4);
+            const regenAmount = 0.14 * this.getShieldStaminaRegenMultiplier();
+            this.stamina = Math.min(this.maxStamina, this.stamina + regenAmount);
         }
 
         // Reducir timers
@@ -187,18 +228,16 @@ export class Knight {
         this.isBlocking = input.block && this.isGrounded && !this.isCrouching && !this.isAttacking;
 
         // 3. Movimiento Lateral (WASD / Flechas)
-        if (!this.isBlocking && !this.isCrouching) {
+        if (!this.isCrouching) {
             if (input.left) {
-                this.vx = -this.speed;
+                this.vx = this.isBlocking ? -this.speed * 0.35 : -this.speed;
                 this.facing = -1;
             } else if (input.right) {
-                this.vx = this.speed;
+                this.vx = this.isBlocking ? this.speed * 0.35 : this.speed;
                 this.facing = 1;
             } else {
                 this.vx *= this.friction; // Aplicar fricción al soltar teclas
             }
-        } else if (this.isBlocking) {
-            this.vx *= 0.3; // Moverse súper lento al cubrirse
         }
 
         // 4. Saltar (Tecla W, Espacio, o botón virtual)
@@ -304,11 +343,12 @@ export class Knight {
 
     // Desatar Ataque Cargado
     triggerChargedAttack() {
-        if (this.stamina < 20 || this.isRolling || this.isBlocking || this.hp <= 0) {
+        const staminaCost = 35;
+        if (this.stamina < staminaCost || this.isRolling || this.isBlocking || this.hp <= 0) {
             particles.addFloatingText(this.x + this.width/2, this.y - 20, "NO STAMINA", "#ff3333", 9);
             return;
         }
-        this.stamina = 0; // Consumir TODA la estamina
+        this.stamina = Math.max(0, this.stamina - staminaCost);
         this.isAttacking = true;
         this.isChargedStriking = true; // Activar estado cargado
         this.attackTimer = 18; // Duración ligeramente mayor
@@ -357,9 +397,9 @@ export class Knight {
 
         // 1. Verificar si está bloqueando direccionalmente
         const isDamageFromFront = (sourceX > this.x && this.facing === 1) || (sourceX < this.x && this.facing === -1);
-        if (this.isBlocking && isDamageFromFront && this.stamina >= amount * 1.2) {
-            const staminaCost = amount * 1.0;
-            this.stamina -= staminaCost;
+        const blockStaminaCost = 5;
+        if (this.isBlocking && isDamageFromFront && this.stamina >= blockStaminaCost) {
+            this.stamina = Math.max(0, this.stamina - blockStaminaCost);
             this.statsDamageBlocked += amount;
             
             // Bloqueo exitoso: Reducir daño a 0, hacer chispas de metal y pequeño empujón
@@ -378,13 +418,14 @@ export class Knight {
         }
 
         // 2. Recibir Daño Real
-        this.hp = Math.max(0, this.hp - amount);
+        const finalAmount = Math.max(1, Math.round(amount));
+        this.hp = Math.max(0, this.hp - finalAmount);
         this.hurtTimer = 18;
         this.invincibleTimer = 35; // Frames de inmunidad tras golpe
         
         audio.playHit();
         particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 10, false);
-        particles.addFloatingText(this.x + this.width/2, this.y - 15, `-${amount}`, "#ff3333", 12, true);
+        particles.addFloatingText(this.x + this.width/2, this.y - 15, `-${finalAmount}`, "#ff3333", 12, true);
 
         // Sacudida de pantalla (se maneja en game.js usando este flag)
         this.shouldTriggerShake = true;
@@ -409,21 +450,47 @@ export class Knight {
         particles.addFloatingText(this.x + this.width/2, this.y - 15, `+${amount} HP`, "#00ff66", 11);
     }
 
-    // Beber poción menor del bulto
+    // Beber poción de vida del bulto
     usePotion() {
         if (this.hp <= 0 || this.potions <= 0) return false;
         
         this.potions--;
-        this.heal(25); // Cura 25% de la vida (25 HP)
+        // Curar porcentaje de la vida máxima basado en el nivel de poción
+        const percentage = this.potionLevel === 1 ? 0.25 : 0.35;
+        const amount = Math.round(this.maxHp * percentage);
+        this.heal(amount);
         return true;
     }
 
     // Beber poción mayor del bulto
     useGreatPotion() {
         if (this.hp <= 0 || this.greatPotions <= 0) return false;
-        
+
         this.greatPotions--;
-        this.heal(65); // Cura 65% de la vida (65 HP)
+        const amount = Math.round(this.maxHp * 0.65);
+        this.heal(amount);
+        return true;
+    }
+
+    // Comer bayas silvestres guardadas en la bolsa
+    useBerry() {
+        if (this.hp <= 0 || this.berries <= 0) return false;
+
+        this.berries--;
+        const amount = Math.round(this.maxHp * (0.10 + this.berryHealBonus));
+        this.heal(amount);
+        return true;
+    }
+
+    useVioletBerry() {
+        if (this.hp <= 0 || this.violetBerries <= 0) return false;
+
+        this.violetBerries--;
+        const hpAmount = Math.round(this.maxHp * (0.15 + this.berryHealBonus));
+        const staminaAmount = Math.round(this.maxStamina * 0.10);
+        this.heal(hpAmount);
+        this.stamina = Math.min(this.maxStamina, this.stamina + staminaAmount);
+        particles.addFloatingText(this.x + this.width/2, this.y - 32, `+${staminaAmount} ST`, "#b85cff", 9);
         return true;
     }
 
@@ -458,8 +525,9 @@ export class Knight {
             const dy = platTopY - py;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            // Debe estar por encima (dy < 10) y dentro del alcance de 280px
-            if (dy < 10 && dist < 280 && dist < minDist) {
+            // Debe estar por encima (dy < 10) y dentro del alcance del gancho.
+            const hookRange = 280 + (this.hookRangeBonus || 0);
+            if (dy < 10 && dist < hookRange && dist < minDist) {
                 minDist = dist;
                 closestPlat = plat;
                 targetX = platCenterX;
@@ -474,8 +542,19 @@ export class Knight {
             this.hookTargetPlat = closestPlat; // Guardar referencia de la plataforma objetivo
             audio.playJump(); // Reproducir sonido retro
             
+            // Estimular las lianas si es una plataforma de madera del bosque
+            if (closestPlat.style === 'wood' && closestPlat._vines) {
+                closestPlat._vines.forEach(v => {
+                    v.swayTime = 4.0;
+                });
+            }
+
             // Efectos visuales de enganche
             particles.spawnSparks(targetX, targetY, 6, 0);
+            // Destello extra de chispas verdes de hojas
+            if (closestPlat.style === 'wood') {
+                particles.spawnCollectGlow(targetX, targetY, '#3cb83a', 8);
+            }
             particles.addFloatingText(px, py - 20, "HOOK!", "#00ffcc", 10, true);
         } else {
             particles.addFloatingText(px, py - 20, "NO TARGET", "#ff3333", 9, false);
@@ -495,7 +574,7 @@ export class Knight {
     // ==========================================================================
     // DIBUJADO PROCEDURAL DEL CABALLERO (Estilo Pixel Art Retro)
     // ==========================================================================
-    draw(ctx) {
+    draw(ctx, isLightningActive = false) {
         if (this.hp <= 0) {
             this.drawDead(ctx);
             return;
@@ -508,10 +587,14 @@ export class Knight {
             ctx.globalAlpha = 0.3;
         }
 
-        // Efecto rojo al ser golpeado, o aura al cargar ataque
+        // Efecto rojo al ser golpeado, aura de rayo al destellar, o aura al cargar ataque
         if (this.hurtTimer > 0) {
             ctx.shadowColor = '#ff0000';
             ctx.shadowBlur = 10;
+        } else if (isLightningActive) {
+            // El héroe resplandece en cian brillante al caer el rayo
+            ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 24;
         } else if (this.chargeTimer > 0) {
             if (this.chargeTimer >= this.chargeDuration) {
                 // Brillo dorado al estar completamente cargado
@@ -656,16 +739,26 @@ export class Knight {
             ctx.translate(x + 26, y + 28 + bounce);
             ctx.rotate(Math.PI * 0.15); // Inclinación en descanso
             
-            if (this.weapon === 'legendary') {
+            if (this.weapon === 'storm') {
+                ctx.fillStyle = '#f4f7ff';
+                ctx.fillRect(-2, 0, 4, 6);
+                ctx.fillStyle = '#7fdfff';
+                ctx.fillRect(-8, 0, 16, 2.5);
+
+                ctx.fillStyle = '#9ee8ff';
+                ctx.fillRect(-3, -38, 6, 38);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-1, -36, 2, 36);
+            } else if (this.weapon === 'legendary') {
                 // Mango de oro
                 ctx.fillStyle = '#d1a115';
                 ctx.fillRect(-2, 0, 4, 6);
                 ctx.fillRect(-8, 0, 16, 2.5); // Guarda más ancha
                 
-                // Hoja roja de energía templada
-                ctx.fillStyle = '#ff0033';
+                // Hoja de fuego templado de magma
+                ctx.fillStyle = '#ff2200'; // Rojo fuego vivo
                 ctx.fillRect(-3, -34, 6, 34); // Hoja más larga y ancha
-                ctx.fillStyle = '#ffffff'; // Destello interior
+                ctx.fillStyle = '#ffd700'; // Destello interior dorado/amarillo
                 ctx.fillRect(-1, -32, 2, 32);
             } else {
                 // Mango dorado
@@ -766,13 +859,22 @@ export class Knight {
         ctx.rotate(angle);
 
         // Dibujar espada atacando
-        if (this.weapon === 'legendary') {
+        if (this.weapon === 'storm') {
+            ctx.fillStyle = '#f4f7ff';
+            ctx.fillRect(-2, 0, 4, 8);
+            ctx.fillStyle = '#7fdfff';
+            ctx.fillRect(-10, 8, 20, 4);
+            ctx.fillStyle = '#9ee8ff';
+            ctx.fillRect(-4, -48, 8, 48);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(-1.5, -46, 3, 44);
+        } else if (this.weapon === 'legendary') {
             ctx.fillStyle = '#d1a115'; // Mango de oro
             ctx.fillRect(-2, 0, 4, 8);
             ctx.fillRect(-10, 8, 20, 4); // Guarda más grande
-            ctx.fillStyle = '#ff0033'; // Hoja de energía carmesí
+            ctx.fillStyle = '#ff2200'; // Hoja de energía de magma
             ctx.fillRect(-4, -42, 8, 42); // Hoja más larga y ancha
-            ctx.fillStyle = '#fff'; // Filo interior brillante
+            ctx.fillStyle = '#ffea00'; // Filo de fuego amarillo brillante
             ctx.fillRect(-1.5, -40, 3, 38);
         } else {
             ctx.fillStyle = '#d1a115'; // Mango
@@ -792,23 +894,30 @@ export class Knight {
             
             // Si es un ataque cargado, el espadazo es dorado y mucho más grande!
             let slashRadius = this.isChargedStriking ? 58 : 38;
-            if (this.weapon === 'legendary') {
+            if (this.weapon === 'storm') {
+                slashRadius = this.isChargedStriking ? 82 : 56;
+            } else if (this.weapon === 'legendary') {
                 slashRadius = this.isChargedStriking ? 75 : 50;
             }
             const startAngle = this.isChargedStriking ? -Math.PI * 0.45 : -Math.PI * 0.4;
             const endAngle = this.isChargedStriking ? Math.PI * 0.45 : Math.PI * 0.4;
             
             const slashGrad = ctx.createRadialGradient(0, 0, 10, 15, 0, slashRadius);
-            if (this.weapon === 'legendary') {
+            if (this.weapon === 'storm') {
+                slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
+                slashGrad.addColorStop(0.35, 'rgba(158, 232, 255, 0.9)');
+                slashGrad.addColorStop(0.75, 'rgba(60, 160, 255, 0.65)');
+                slashGrad.addColorStop(1, 'rgba(60, 160, 255, 0)');
+            } else if (this.weapon === 'legendary') {
                 if (this.isChargedStriking) {
-                    slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.98)'); // Núcleo brillante
-                    slashGrad.addColorStop(0.3, 'rgba(255, 0, 102, 0.9)');   // Rosa neón brillante
-                    slashGrad.addColorStop(0.7, 'rgba(128, 0, 128, 0.7)');   // Púrpura místico
-                    slashGrad.addColorStop(1, 'rgba(255, 0, 0, 0)');          // Rojo desvanecido
+                    slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.99)');  // Núcleo brillante blanco fuego
+                    slashGrad.addColorStop(0.25, 'rgba(255, 200, 0, 0.95)'); // Amarillo incandescente
+                    slashGrad.addColorStop(0.65, 'rgba(255, 60, 0, 0.85)');  // Naranja magma vivo
+                    slashGrad.addColorStop(1, 'rgba(160, 0, 0, 0)');         // Rojo ceniza desvanecido
                 } else {
-                    slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-                    slashGrad.addColorStop(0.5, 'rgba(200, 0, 100, 0.7)');    // Rosa/Violeta
-                    slashGrad.addColorStop(1, 'rgba(100, 0, 200, 0)');        // Morado profundo
+                    slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');  // Núcleo blanco
+                    slashGrad.addColorStop(0.45, 'rgba(255, 90, 0, 0.85)');  // Naranja ígneo
+                    slashGrad.addColorStop(1, 'rgba(160, 0, 0, 0)');         // Rojo ceniza
                 }
             } else {
                 if (this.isChargedStriking) {

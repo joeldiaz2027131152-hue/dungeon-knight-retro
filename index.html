@@ -21,12 +21,15 @@
         <!-- INTERFAZ DE USUARIO (HUD) -->
         <div id="hud" class="hidden">
             <div class="hud-left">
+                <!-- Indicador de Nivel -->
+                <div id="hud-level-indicator" class="hud-level-indicator">NIVEL 1-1</div>
                 <!-- Barra de Vida del Jugador -->
                 <div class="status-bar-container">
                     <span class="bar-label">HP</span>
                     <div class="bar-border">
                         <div id="player-hp-bar" class="bar-fill hp-fill" style="width: 100%;"></div>
                         <div id="player-hp-shadow" class="bar-fill-shadow" style="width: 100%;"></div>
+                        <span id="player-hp-text" style="position:absolute;top:0;left:50%;transform:translateX(-50%);font-family:'Press Start 2P',monospace;font-size:9px;color:#ffffff;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;line-height:10px;pointer-events:none;z-index:3;">100/100</span>
                     </div>
                 </div>
                 <!-- Barra de Estamina / Escudo -->
@@ -34,6 +37,7 @@
                     <span class="bar-label">ST</span>
                     <div class="bar-border">
                         <div id="player-st-bar" class="bar-fill st-fill" style="width: 100%;"></div>
+                        <span id="player-st-text" style="position:absolute;top:0;left:50%;transform:translateX(-50%);font-family:'Press Start 2P',monospace;font-size:9px;color:#ffffff;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;line-height:10px;pointer-events:none;z-index:3;">100/100</span>
                     </div>
                 </div>
             </div>
@@ -41,6 +45,8 @@
             <div class="hud-right" style="pointer-events: auto;">
                 <!-- Botón de Usar Poción Mayor Rápida -->
                 <button id="btn-great-potion-hud" class="hud-pause-btn" style="background-color: rgba(102, 51, 255, 0.15); border-color: #6633ff; position: relative;" title="Poción Mayor (G)"><span style="filter: hue-rotate(240deg);">🧪</span></button>
+                <!-- Botón de Comer Bayas Rápido -->
+                <button id="btn-berry-hud" class="hud-pause-btn" style="background-color: rgba(255, 51, 85, 0.15); border-color: #ff3355; position: relative;" title="Bayas Rojas/Violetas (H)">🍓</button>
                 <!-- Botón de Usar Poción Menor Rápida -->
                 <button id="btn-potion-hud" class="hud-pause-btn" style="background-color: rgba(255, 51, 102, 0.15); border-color: #ff3366; position: relative;" title="Poción Menor (Q)">🧪</button>
                 <!-- Botón de Bulto (Inventario) -->
@@ -60,7 +66,7 @@
                     <!-- 1. ARMA ACTIVA (Arriba) -->
                     <div class="equipped-weapon-section">
                         <div class="equipped-weapon-label">ARMA PRINCIPAL</div>
-                        <div id="equipped-weapon-slot" class="equipped-weapon-slot">
+                        <div id="equipped-weapon-slot" class="equipped-weapon-slot" style="cursor: pointer;">
                             <span id="equipped-weapon-icon" class="slot-icon">🗡️</span>
                             <span id="equipped-weapon-name" class="equipped-weapon-name">Espada Oxidada</span>
                         </div>
@@ -69,45 +75,74 @@
                     <!-- 2. ESCUDO ACTIVO (Debajo de la espada) -->
                     <div class="equipped-weapon-section" style="margin-top: 2px;">
                         <div class="equipped-weapon-label">ESCUDO</div>
-                        <div class="equipped-weapon-slot" style="border-color: #5c5c6d; box-shadow: 0 0 6px rgba(92, 92, 109, 0.3);">
-                            <span class="slot-icon">🛡️</span>
-                            <span class="equipped-weapon-name" style="color: #a0a0b0;">Escudo de Acero</span>
+                        <div id="equipped-shield-slot" class="equipped-weapon-slot" style="border-color: #5c5c6d; box-shadow: 0 0 6px rgba(92, 92, 109, 0.3); cursor: pointer;">
+                            <span id="equipped-shield-icon" class="slot-icon">🛡️</span>
+                            <span id="equipped-shield-name" class="equipped-weapon-name" style="color: #a0a0b0;">Escudo de Acero</span>
                         </div>
                     </div>
 
-                    <!-- 3. ARMAS NO EQUIPADAS / RESERVAS (Debajo del escudo) -->
-                    <div class="inventory-popup-title" style="margin-top: 4px; border-bottom: none; font-size: 7px;">ARMAS DE RESERVA</div>
-                    <div class="inventory-grid" style="grid-template-columns: repeat(2, 1fr);">
-                        <div id="slot-weapon-rusty" class="inventory-slot active-slot equipped-highlight" title="Espada Oxidada">
-                            <span class="slot-icon">🗡️</span>
-                            <span id="label-weapon-rusty" class="slot-qty" style="font-size: 4.5px; background: rgba(0,255,102,0.85); color: #fff; padding: 1px 3px; border-radius: 2px; right: 2px; bottom: 2px;">USANDO</span>
-                        </div>
-                        <div id="slot-weapon-legendary" class="inventory-slot locked-slot" title="Espada Legendaria (Bloqueada)">
-                            <span id="legendary-slot-icon" class="slot-icon" style="opacity: 0.15; filter: drop-shadow(0 0 2px red);">🔥</span>
-                            <span id="legendary-slot-qty" class="slot-qty" style="font-size: 4.5px; background: rgba(0,0,0,0.8); color: #888; padding: 1px 3px; border-radius: 2px; right: 2px; bottom: 2px;">BLOQ</span>
-                        </div>
-                    </div>
-
-                    <!-- 4. POCIONES / CONSUMIBLES (Abajo del todo) -->
-                    <div class="inventory-popup-title" style="margin-top: 4px; border-bottom: none; font-size: 7px;">POCIONES Y CONSUMIBLES</div>
-                    <div class="inventory-grid" style="grid-template-columns: repeat(2, 1fr);">
+                    <!-- 3. POCIONES / CONSUMIBLES (Abajo del todo) -->
+                    <div id="consumables-section-title" class="inventory-popup-title" style="margin-top: 4px; border-bottom: none; font-size: 7px; cursor: pointer;">POCIONES Y CONSUMIBLES</div>
+                    <div class="inventory-grid" style="grid-template-columns: repeat(3, 1fr);">
                         <div id="slot-potion" class="inventory-slot active-slot" title="Poción Menor (Cura 25%)">
                             <span class="slot-icon">🧪</span>
                             <span id="slot-potion-qty" class="slot-qty">x1</span>
                         </div>
-                        <div id="slot-great-potion" class="inventory-slot active-slot" title="Poción Mayor (Cura 65%)">
+                        <div id="slot-great-potion" class="inventory-slot active-slot hidden" title="Poción Mayor (Cura 65%)">
                             <span class="slot-icon" style="filter: hue-rotate(240deg);">🧪</span>
                             <span id="slot-great-potion-qty" class="slot-qty">x0</span>
                         </div>
+                        <div id="slot-berry" class="inventory-slot active-slot hidden" title="Bayas Rojas (Cura 10% de vida)">
+                            <span class="slot-icon">🍓</span>
+                            <span id="slot-berry-qty" class="slot-qty">x0</span>
+                        </div>
+                        <div id="slot-violet-berry" class="inventory-slot active-slot hidden" title="Bayas Violetas (Cura 15% de vida y 10% de estamina)">
+                            <span class="slot-icon">🫐</span>
+                            <span id="slot-violet-berry-qty" class="slot-qty">x0</span>
+                        </div>
+                        <div id="slot-consumables-bag" class="inventory-slot active-slot bag-slot" title="Abrir Bolsa de Consumibles">
+                            <span class="slot-icon">🎒</span>
+                            <span id="slot-consumables-qty" class="slot-qty">6</span>
+                        </div>
                     </div>
 
-                    <div class="inventory-popup-desc">🎒 EQUIPAMIENTO SOULS<br><span style="font-size: 6px; color: #a0a0b0; display: block; margin-top: 2px;">Haz click en las reservas para equiparlas.</span></div>
+                    <!-- 4. OBJETOS CLAVE -->
+                    <div id="key-items-section" class="equipped-weapon-section" style="margin-top: 4px;">
+                        <div class="inventory-popup-title" style="border-bottom: none; font-size: 7px;">OBJETOS CLAVE</div>
+                        <div class="inventory-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 2px;">
+                            <div id="slot-magic-map" class="inventory-slot active-slot" title="Mapa Mágico — Permite viajar rápido entre hogueras" style="pointer-events: auto !important; cursor: pointer;" onclick="if(window.gameInstance) { console.log('Clic inline detectado en slot-magic-map'); window.gameInstance.openMagicMap(); }" ontouchstart="if(window.gameInstance) { console.log('Touch inline detectado en slot-magic-map'); window.gameInstance.openMagicMap(); }">
+                                <span class="slot-icon" style="pointer-events: none;">🗺️</span>
+                                <span id="slot-magic-map-qty" class="slot-qty" style="pointer-events: none;">x1</span>
+                            </div>
+                            <div id="slot-forest-key" class="inventory-slot empty-slot" title="Llave del Bosque — Abre la puerta sellada del Nivel 3-5">
+                                <span class="slot-icon">🗝️</span>
+                                <span id="slot-forest-key-qty" class="slot-qty">x0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="inventory-popup-desc">🎒 EQUIPAMIENTO SOULS<br><span style="font-size: 6px; color: #a0a0b0; display: block; margin-top: 2px;">Haz click en Arma o Escudo para ver tus reservas.</span></div>
+                </div>
+
+                <!-- SUBGRID DE DETALLES DEL INVENTARIO (6 CUADROS) -->
+                <div id="inventory-subgrid-popup" class="inventory-popup-box hidden" style="right: 226px; width: 190px;">
+                    <div id="subgrid-title" class="inventory-popup-title">RESERVAS</div>
+                    <div id="subgrid-grid" class="inventory-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 6px; margin-bottom: 6px;">
+                        <!-- Se poblará dinámicamente desde javascript con las 6 armas o escudos -->
+                        <div class="inventory-slot empty-slot"><span class="slot-icon"></span><span class="slot-qty"></span></div>
+                        <div class="inventory-slot empty-slot"><span class="slot-icon"></span><span class="slot-qty"></span></div>
+                        <div class="inventory-slot empty-slot"><span class="slot-icon"></span><span class="slot-qty"></span></div>
+                        <div class="inventory-slot empty-slot"><span class="slot-icon"></span><span class="slot-qty"></span></div>
+                        <div class="inventory-slot empty-slot"><span class="slot-icon"></span><span class="slot-qty"></span></div>
+                        <div class="inventory-slot empty-slot"><span class="slot-icon"></span><span class="slot-qty"></span></div>
+                    </div>
+                    <div id="subgrid-desc" class="inventory-popup-desc" style="font-size: 6px;">Elige un equipamiento para equiparlo.</div>
                 </div>
             </div>
 
             <!-- Barra de Vida del Jefe (Solo aparece en el Nivel 2) -->
             <div id="boss-hud" class="hidden animate-fade-in">
-                <div class="boss-name">EL REY ESQUELETO GIGANTE</div>
+                <div id="boss-name-label" class="boss-name">EL REY ESQUELETO GIGANTE</div>
                 <div class="boss-bar-border">
                     <div id="boss-hp-bar" class="boss-bar-fill" style="width: 100%;"></div>
                     <div id="boss-hp-shadow" class="boss-bar-fill-shadow" style="width: 100%;"></div>
@@ -176,11 +211,11 @@
             <button id="btn-restart" class="btn-retro">JUGAR DE NUEVO</button>
         </div>
 
-        <!-- PANTALLA: TRANSICIÓN DE MUNDO (FIN DEL NIVEL 1-4) -->
+        <!-- PANTALLA: TRANSICIÓN DE MUNDO (FIN DEL NIVEL 1-5) -->
         <div id="world-transition-screen" class="overlay-screen hidden">
-            <h1 class="victory-title animate-glow" style="color: #ffd700; text-shadow: 0 0 15px rgba(255, 215, 0, 0.6), 4px 4px 0px #000; font-size: 16px;">¡MUNDO 1 COMPLETADO!</h1>
-            <h2 class="victory-subtitle" style="color: #ff3333; margin-top: 15px; font-size: 10px;">HAS SUPERADO EL NIVEL 1-4</h2>
-            <p class="game-subtitle" style="font-size: 8px; color: #a0a0b0; margin-top: 10px; margin-bottom: 25px; line-height: 1.6;">Prepárate para el nivel 2-1...<br><span style="color: #b642f5;">La Cripta Vertical</span> te espera con peligros mayores.</p>
+            <h1 id="wt-title" class="victory-title animate-glow" style="color: #ffd700; text-shadow: 0 0 15px rgba(255, 215, 0, 0.6), 4px 4px 0px #000; font-size: 16px;">¡MUNDO 1 COMPLETADO!</h1>
+            <h2 id="wt-subtitle" class="victory-subtitle" style="color: #ff3333; margin-top: 15px; font-size: 10px;">HAS SUPERADO EL NIVEL 1-5</h2>
+            <p id="wt-description" class="game-subtitle" style="font-size: 8px; color: #a0a0b0; margin-top: 10px; margin-bottom: 25px; line-height: 1.6;">Prepárate para el nivel 2-1...<br><span style="color: #ff6600;">Las Catacumbas de Lava</span> te esperan con peligros mayores.</p>
             
             <button id="btn-world-transition-continue" class="btn-retro animate-pulse" style="width: 260px;">CONTINUAR</button>
         </div>
@@ -200,20 +235,58 @@
 
         <!-- PANTALLA: TIENDA DE LA HOGUERA -->
         <div id="bonfire-screen" class="overlay-screen hidden">
-            <h1 class="game-title animate-glow" style="color: #ff6600; text-shadow: 0 0 15px rgba(255,102,0,0.6), 4px 4px 0px #000;">LA HOGUERA</h1>
-            <p class="game-subtitle" style="color: #ffd700; margin-bottom: 20px;">DESCANSO Y TIENDA MÁGICA</p>
+            <h1 class="game-title animate-glow" style="color: #ff6600; text-shadow: 0 0 15px rgba(255,102,0,0.6), 4px 4px 0px #000; font-size: 32px; margin-bottom: 0px;">LA HOGUERA</h1>
+            <p class="game-subtitle" style="color: #ffd700; margin-bottom: 12px; font-size: 8px; letter-spacing: 2px;">DESCANSO Y TIENDA MÁGICA</p>
             
-            <div class="stats-box" style="border-color: #ff6600; background: rgba(15, 10, 5, 0.85);">
-                <p>Tus Monedas: <span id="shop-coins" style="color: #ffd700;">000</span></p>
-                <p>Tu HP actual: <span id="shop-hp" style="color: #ff3333;">100 / 100</span></p>
+            <div class="stats-box" style="border-color: #ff6600; background: rgba(15, 10, 5, 0.85); width: 660px; margin-bottom: 12px; padding: 10px 20px;">
+                <p style="margin: 4px 0; display: flex; justify-content: space-between; font-size: 8px; width: 100%; color: #d0d0e0;">
+                    <span>🪙 Monedas: <span id="shop-coins" style="color: #ffd700;">000</span></span>
+                    <span>Tu HP: <span id="shop-hp" style="color: #ff3333;">100 / 100</span></span>
+                    <span>🔴 Rojas: <span id="shop-red-coins" style="color: #ff3333; font-weight: bold;">0</span></span>
+                    <span>🟢 Verdes: <span id="shop-green-coins" style="color: #00ff66; font-weight: bold;">0</span></span>
+                    <span>⚪ Grises: <span id="shop-grey-coins" style="color: #b0b0b0; font-weight: bold;">0</span></span>
+                </p>
             </div>
 
-            <div class="menu-buttons-vertical" style="width: 320px;">
-                <button id="btn-shop-rest" class="btn-retro">🔥 DESCANSAR (GRATIS - CURA 100%)</button>
-                <button id="btn-shop-buy" class="btn-retro">🧪 POCIÓN MENOR (CURA 25% - CUESTA 10 🪙)</button>
-                <button id="btn-shop-buy-great" class="btn-retro">🧪 POCIÓN MAYOR (CURA 65% - CUESTA 20 🪙)</button>
-                <button id="btn-shop-exit" class="btn-retro" style="background-color: #2a1515; border-color: #3e2723;">VOLVER AL CAMINO</button>
+            <div class="bonfire-container">
+                <div class="bonfire-section">
+                    <h3>TIENDA / DESCANSO</h3>
+                    <button id="btn-shop-rest" class="btn-retro">🔥 DESCANSAR (GRATIS - CURA 100%)</button>
+                    <button id="btn-shop-buy" class="btn-retro">🧪 POCIÓN DE VIDA (10 🪙)</button>
+                    <button id="btn-shop-buy-great" class="btn-retro" style="display: none;">🧪 POCIÓN MAYOR (50 🪙)</button>
+                </div>
+                <div class="bonfire-section">
+                    <h3>MEJORAS ALMA DE CABALLERO</h3>
+                    <button id="btn-upgrade-hp" class="btn-retro">❤️ MEJORAR VIDA (NIV. 1 ➔ 2) <span>1 🔴</span></button>
+                    <button id="btn-upgrade-stamina" class="btn-retro">💚 MEJORAR ESTAMINA (NIV. 1 ➔ 2) <span>1 🟢</span></button>
+                    <button id="btn-upgrade-damage" class="btn-retro">🗡️ MEJORAR DAÑO (NIV. 1 ➔ 2) <span>1 ⚪</span></button>
+                    <button id="btn-upgrade-potion" class="btn-retro">🧪 MEJORAR POCIÓN (NIV. 1 ➔ 2) <span>1 🏺</span></button>
+                </div>
             </div>
+
+            <button id="btn-shop-exit" class="btn-retro" style="background-color: #2a1515; border-color: #3e2723; margin-top: 12px; width: 320px; font-size: 10px; padding: 10px 20px;">VOLVER AL CAMINO</button>
+        </div>
+
+        <!-- PANTALLA: MAPA MÁGICO DE VIAJE -->
+        <div id="magic-map-screen" class="overlay-screen hidden" style="background: rgba(10, 8, 12, 0.95); z-index: 11000 !important; pointer-events: auto !important; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <h1 class="game-title animate-glow" style="color: #9ee8ff; text-shadow: 0 0 15px rgba(158, 232, 255, 0.5), 4px 4px 0px #000; font-size: 28px; margin-bottom: 5px;">MAPA MÁGICO</h1>
+            <p class="game-subtitle" style="color: #a0a0b0; font-size: 8px; margin-bottom: 20px; letter-spacing: 2px;">VIAJE RÁPIDO ENTRE HOGUERAS ENCENDIDAS</p>
+            
+            <div id="map-worlds-selector" class="menu-buttons-vertical" style="flex-direction: row; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; justify-content: center; width: 85%; pointer-events: auto !important;">
+                <button id="btn-map-world-1" class="btn-retro" style="width: 160px; font-size: 8px; line-height: 1.4; pointer-events: auto !important;" onclick="if(window.gameInstance) window.gameInstance.selectMapWorld(1);">MUNDO 1<br><span style="font-size: 6px; color: #a0a0b0; pointer-events: none;">PASILLO GÓTICO</span></button>
+                <button id="btn-map-world-2" class="btn-retro" style="width: 160px; font-size: 8px; line-height: 1.4; pointer-events: auto !important;" onclick="if(window.gameInstance) window.gameInstance.selectMapWorld(2);">MUNDO 2<br><span style="font-size: 6px; color: #ff6600; pointer-events: none;">CATACUMBAS ÍGNEAS</span></button>
+                <button id="btn-map-world-3" class="btn-retro" style="width: 160px; font-size: 8px; line-height: 1.4; pointer-events: auto !important;" onclick="if(window.gameInstance) window.gameInstance.selectMapWorld(3);">MUNDO 3<br><span style="font-size: 6px; color: #00ff66; pointer-events: none;">SENDERO DEL BOSQUE</span></button>
+                <button id="btn-map-world-4" class="btn-retro" style="width: 160px; font-size: 8px; line-height: 1.4; pointer-events: auto !important;" onclick="if(window.gameInstance) window.gameInstance.selectMapWorld(4);">MUNDO 4<br><span style="font-size: 6px; color: #9ee8ff; pointer-events: none;">FORTALEZA CELESTE</span></button>
+            </div>
+            
+            <div id="map-levels-container" style="display: flex; flex-direction: column; align-items: center; width: 85%; max-height: 220px; overflow-y: auto; background: rgba(20, 18, 24, 0.8); border: 2px solid #3a3a4c; border-radius: 6px; padding: 15px; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); margin-bottom: 20px; pointer-events: auto !important;">
+                <div id="map-world-title" style="font-family: 'Press Start 2P', monospace; font-size: 10px; color: #ffd700; margin-bottom: 15px; border-bottom: 1px solid #3a3a4c; padding-bottom: 8px; width: 100%; text-align: center;">SELECCIONA UN MUNDO</div>
+                <div id="map-levels-list" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; pointer-events: auto !important;">
+                    <!-- Poblar dinámicamente -->
+                </div>
+            </div>
+            
+            <button id="btn-map-close" class="btn-retro" style="background-color: #2a1515; border-color: #3e2723; width: 200px; font-size: 9px; padding: 10px; pointer-events: auto !important;" onclick="if(window.gameInstance) window.gameInstance.closeMagicMap();">CERRAR MAPA</button>
         </div>
 
         <!-- CONTROLES TÁCTILES PARA DISPOSITIVOS MÓVILES (Ocultos en PC) -->

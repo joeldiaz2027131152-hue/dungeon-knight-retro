@@ -119,6 +119,16 @@ canvas {
     gap: 8px;
 }
 
+.hud-level-indicator {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: #ffd700; /* Dorado brillante retro */
+    text-shadow: 2px 2px 0px #000, 0 0 5px rgba(255, 215, 0, 0.4);
+    margin-bottom: 2px;
+    letter-spacing: 1px;
+    pointer-events: auto;
+}
+
 /* Barras de Estado Góticas */
 .status-bar-container {
     display: flex;
@@ -738,6 +748,11 @@ canvas {
     background-color: rgba(255, 215, 0, 0.05);
 }
 
+.bag-slot {
+    border-color: #2ecc71;
+    box-shadow: inset 0 0 5px rgba(46, 204, 113, 0.35), 0 0 6px rgba(46, 204, 113, 0.25);
+}
+
 .active-slot {
     border-color: #ffd700;
     box-shadow: inset 0 0 5px rgba(255, 215, 0, 0.3);
@@ -832,5 +847,66 @@ canvas {
 .unlocked-slot:hover {
     border-color: #ffd700 !important;
     box-shadow: 0 0 10px rgba(255, 215, 0, 0.6) !important;
+}
+
+/* Contenedor de la Hoguera en dos paneles */
+.bonfire-container {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 5px;
+    width: 100%;
+    max-width: 680px;
+    justify-content: center;
+}
+
+.bonfire-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 320px;
+    background: rgba(12, 8, 4, 0.9);
+    border: 2px solid #ff6600;
+    padding: 14px;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.6), inset 0 0 10px rgba(255, 102, 0, 0.1);
+}
+
+.bonfire-section h3 {
+    font-size: 8px;
+    font-family: var(--font-retro);
+    color: #ffd700;
+    margin: 0 0 4px 0;
+    border-bottom: 2px solid rgba(255, 102, 0, 0.25);
+    padding-bottom: 6px;
+    text-align: center;
+    letter-spacing: 1px;
+    text-shadow: 1px 1px 2px #000;
+}
+
+/* Ajuste de botones retro para que quepan en las columnas */
+.bonfire-section .btn-retro {
+    font-size: 7.5px;
+    padding: 8px 12px;
+    width: 100%;
+    box-shadow: 0 4px 0 #000, 0 6px 8px rgba(0,0,0,0.5);
+    text-align: left;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.bonfire-section .btn-retro:hover {
+    box-shadow: 0 4px 0 #000, 0 6px 12px rgba(255, 215, 0, 0.25);
+}
+
+.bonfire-section .btn-retro:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #000, 0 3px 6px rgba(0,0,0,0.5);
+}
+
+/* ESTILOS MAPA MÁGICO */
+#slot-magic-map:hover {
+    border-color: #9ee8ff;
+    box-shadow: 0 0 10px rgba(158, 232, 255, 0.8), inset 0 0 5px rgba(158, 232, 255, 0.4);
 }
 

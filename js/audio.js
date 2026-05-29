@@ -298,6 +298,55 @@ class RetroAudio {
         });
     }
 
+    // Efecto de Sonido: Trueno procedimental (Ruido sordo con filtro de paso bajo muy profundo y sub-graves sawtooth)
+    playThunder() {
+        this.init();
+        if (this.isMuted || !this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const duration = 1.5;
+        const bufferSize = this.ctx.sampleRate * duration;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(120, now);
+        filter.frequency.exponentialRampToValueAtTime(10, now + duration);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.45, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        const subOsc = this.ctx.createOscillator();
+        subOsc.type = 'sawtooth';
+        subOsc.frequency.setValueAtTime(60, now);
+        subOsc.frequency.linearRampToValueAtTime(20, now + 0.6);
+
+        const subGain = this.ctx.createGain();
+        subGain.gain.setValueAtTime(0.3, now);
+        subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        subOsc.connect(subGain);
+        subGain.connect(this.ctx.destination);
+
+        noise.start();
+        subOsc.start();
+        noise.stop(now + duration);
+        subOsc.stop(now + duration);
+    }
+
     // ==========================================================================
     // Música de Fondo Chiptune Procedural (Bucle medieval dramático)
     // ==========================================================================
