@@ -22,7 +22,7 @@ export class LootItem {
         this.gravity = 0.45;
         this.bounceCount = 0;
         this.isGrounded = false;
-        
+
         this.life = 400; // Desaparece si no se recoge en ~7 segundos
         this.pulseTime = 0;
     }
@@ -44,11 +44,12 @@ export class LootItem {
             // Detección de colisión con plataformas flotantes (one-way)
             if (this.vy >= 0 && platforms.length > 0) {
                 for (let plat of platforms) {
+                    if (plat.hidden || plat.active === false) continue;
                     if (this.x + this.width > plat.x &&
                         this.x < plat.x + plat.width &&
                         this.y + this.height >= plat.y &&
                         this.y + this.height - this.vy <= plat.y + 10) {
-                        
+
                         this.y = plat.y - this.height;
                         if (this.bounceCount < 2) {
                             this.vy = -this.vy * 0.45; // Rebote
@@ -83,7 +84,7 @@ export class LootItem {
     draw(ctx) {
         ctx.save();
         const pulse = Math.sin(this.pulseTime) * 2;
-        
+
         // Parpadeo cuando le queda poca vida
         if (this.life < 100 && Math.floor(this.life / 6) % 2 === 0) {
             ctx.restore();
@@ -107,7 +108,7 @@ export class LootItem {
             ctx.arc(0, 0, 6, 0, Math.PI*2);
             ctx.fill();
             ctx.stroke();
-            
+
             // Núcleo brillante
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(-2, -2, 3, 3);
@@ -120,7 +121,7 @@ export class LootItem {
             ctx.arc(0, 0, 6, 0, Math.PI*2);
             ctx.fill();
             ctx.stroke();
-            
+
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(-2, -2, 3, 3);
         } else if (this.type === 'green_coin') {
@@ -132,7 +133,7 @@ export class LootItem {
             ctx.arc(0, 0, 6, 0, Math.PI*2);
             ctx.fill();
             ctx.stroke();
-            
+
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(-2, -2, 3, 3);
         } else if (this.type === 'grey_coin') {
@@ -144,7 +145,7 @@ export class LootItem {
             ctx.arc(0, 0, 6, 0, Math.PI*2);
             ctx.fill();
             ctx.stroke();
-            
+
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(-2, -2, 3, 3);
         } else if (this.type === 'heart') {
@@ -153,7 +154,7 @@ export class LootItem {
             ctx.fillRect(-2, -7, 4, 3);
             ctx.fillStyle = '#a3a3a3'; // Cristal
             ctx.strokeRect(-4, -4, 8, 8);
-            
+
             ctx.fillStyle = '#ff0033'; // Líquido curativo brillante
             ctx.fillRect(-3, -2, 6, 5);
             ctx.fillStyle = '#ffffff'; // Destello del cristal
@@ -164,7 +165,7 @@ export class LootItem {
             ctx.fillRect(-2, -7, 4, 3);
             ctx.fillStyle = '#a3a3a3'; // Cristal
             ctx.strokeRect(-4, -4, 8, 8);
-            
+
             ctx.fillStyle = '#6633ff'; // Líquido curativo mayor morado
             ctx.fillRect(-3, -2, 6, 5);
             ctx.fillStyle = '#ffffff'; // Destello del cristal
@@ -182,13 +183,13 @@ export class LootItem {
             // Hoja templada (Rojo/morado brillante de magma)
             ctx.fillStyle = '#ff0033'; // Crimson
             ctx.fillRect(-1.5, -7, 3, 11);
-            
+
             // Núcleo brillante
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(-0.5, -6, 1, 10);
 
             ctx.restore();
-            
+
             // Aura brillante a su alrededor
             ctx.strokeStyle = 'rgba(255, 51, 51, 0.6)';
             ctx.lineWidth = 1.5;
@@ -246,12 +247,12 @@ export class LootItem {
             ctx.fillRect(-2, -8, 4, 3);
             ctx.fillStyle = '#e3e3e3'; // Cristal
             ctx.strokeRect(-5, -5, 10, 10);
-            
+
             ctx.fillStyle = '#00ffff'; // Líquido azul/celeste brillante
             ctx.fillRect(-4, -2, 8, 6);
             ctx.fillStyle = '#ffffff'; // Destello
             ctx.fillRect(-2, -3, 2, 2);
-            
+
             // Aura brillante celeste
             ctx.strokeStyle = 'rgba(0, 255, 255, 0.6)';
             ctx.lineWidth = 1.5;
@@ -268,12 +269,29 @@ export class LootItem {
             ctx.fillRect(-1, -1, 2, 8); // Cuerpo de la llave
             ctx.fillRect(1, 3, 2, 2);   // Dientes de la llave
             ctx.fillRect(1, 5, 2, 2);
-            
+
             // Aura brillante verde esmeralda
             ctx.strokeStyle = 'rgba(0, 255, 102, 0.65)';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.arc(0, 0, 10 + Math.sin(this.pulseTime * 2) * 1.5, 0, Math.PI*2);
+            ctx.stroke();
+        } else if (this.type === 'void_key') {
+            // Dibujar Llave del Vacío para la salida del laberinto espectral
+            ctx.fillStyle = '#1c0f2b';
+            ctx.fillRect(-3, -7, 6, 5);
+            ctx.strokeStyle = '#b642f5';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(-3, -7, 6, 5);
+            ctx.fillStyle = '#d9f6ff';
+            ctx.fillRect(-1, -2, 2, 10);
+            ctx.fillRect(1, 4, 4, 2);
+            ctx.fillRect(1, 7, 3, 2);
+
+            ctx.strokeStyle = 'rgba(182, 66, 245, 0.8)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, 11 + Math.sin(this.pulseTime * 2) * 1.8, 0, Math.PI*2);
             ctx.stroke();
         } else if (this.type === 'berry') {
             // Dibujar Baya Roja (pequeña baya carmesí gótica con hojas verdes)
@@ -338,7 +356,7 @@ export class Crate {
     takeDamage() {
         if (!this.active) return null;
         this.active = false;
-        
+
         audio.playCrateBreak();
         particles.spawnWoodSplinters(this.x + this.width/2, this.y + this.height/2, 14);
 
@@ -360,7 +378,7 @@ export class Crate {
         if (!this.active) return;
 
         ctx.save();
-        
+
         // Sombra de la caja
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.fillRect(this.x + 2, this.y + this.height - 3, this.width - 4, 4);
@@ -368,7 +386,7 @@ export class Crate {
         // Cuerpo de madera (Marrón medio con bordes oscuros)
         ctx.fillStyle = '#8b5a2b';
         ctx.fillRect(this.x, this.y, this.width, this.height);
-        
+
         ctx.strokeStyle = '#4e2f15'; // Bordes oscuros
         ctx.lineWidth = 3;
         ctx.strokeRect(this.x, this.y, this.width, this.height);
@@ -456,7 +474,7 @@ export class CeilingBlade {
         this.anchorY = anchorY;
         this.length = length;
         this.bladeRadius = 24;
-        
+
         // Péndulo oscila físicamente
         this.angle = 0;
         this.speed = 0.020;
@@ -502,7 +520,7 @@ export class CeilingBlade {
         const cy = this.y + this.bladeRadius;
 
         ctx.save();
-        
+
         // 1. Dibujar Soporte en el Techo (anclaje gótico)
         ctx.fillStyle = '#3a3a4a';
         ctx.fillRect(this.anchorX - 10, this.anchorY, 20, 8);
@@ -537,7 +555,7 @@ export class CeilingBlade {
         ctx.fillStyle = '#7a7a8a';
         ctx.strokeStyle = '#2d2d3a';
         ctx.lineWidth = 2.5;
-        
+
         ctx.beginPath();
         const teeth = 12;
         const outerRad = this.bladeRadius;
@@ -546,7 +564,7 @@ export class CeilingBlade {
         for (let i = 0; i < teeth; i++) {
             const angle = (i / teeth) * Math.PI * 2;
             const nextAngle = ((i + 0.5) / teeth) * Math.PI * 2;
-            
+
             // Punta de la sierra
             ctx.lineTo(Math.cos(angle) * outerRad, Math.sin(angle) * outerRad);
             // Hueco
@@ -581,17 +599,18 @@ export class BatEnemy {
         this.width = 32;
         this.height = 24;
         this.isFireBat = isFireBat;
-        
+
         this.vx = -1.6; // Empieza volando a la izquierda
         this.sineSpeed = 0.08;
         this.sineTimer = Math.random() * 100;
         this.sineAmplitude = 18;
 
-        this.maxHp = this.isFireBat ? 80 : 65;
+        // Los murcielagos son enemigos fragiles: cualquier golpe basico de espada los elimina.
+        this.maxHp = 10;
         this.hp = this.maxHp;
         this.active = true;
         this.damage = 8;
-        
+
         this.animFrame = 0;
         this.animTime = 0;
 
@@ -640,7 +659,7 @@ export class BatEnemy {
                     const fireVy = 3.2;
 
                     arrows.push(new FireballProjectile(fireX, fireY, fireVx, fireVy, 12));
-                    
+
                     audio.playHit(); // Sonido retro de disparo
                     particles.spawnFire(this.x + this.width/2, this.y + this.height, 1.2, true);
                     particles.addFloatingText(this.x + this.width/2, this.y - 12, "SPIT!", "#ff5500", 8, false);
@@ -663,7 +682,7 @@ export class BatEnemy {
         if (this.hp > 0) return null;
 
         this.active = false;
-        
+
         particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 8, false);
         particles.addFloatingText(this.x + this.width/2, this.y - 5, "SLAY", "#ff3333");
 
@@ -684,23 +703,23 @@ export class BatEnemy {
         ctx.fillRect(-10, 45 - Math.sin(this.sineTimer)*4, 20, 2);
 
         // Dibujar Murciélago Pixelado
-        ctx.fillStyle = this.isFireBat ? '#e65c00' : '#2b233a'; // Cuerpo naranja de fuego o morado oscuro
+        ctx.fillStyle = this.isFireBat ? '#e65c00' : '#57d6ff'; // Cuerpo naranja de fuego o azul cielo
         ctx.fillRect(-6, -6, 12, 10);
-        
+
         // Cara y ojos de vampiro brillantes
-        ctx.fillStyle = '#111';
+        ctx.fillStyle = this.isFireBat ? '#111' : '#0b3750';
         ctx.fillRect(-4, -6, 8, 4);
-        ctx.fillStyle = this.isFireBat ? '#ffd700' : '#ff0033'; // Ojos amarillos de fuego o rojos
+        ctx.fillStyle = this.isFireBat ? '#ffd700' : '#ffffff'; // Ojos amarillos de fuego o blancos
         ctx.fillRect(-3, -5, 1, 1);
         ctx.fillRect(2, -5, 1, 1);
 
         // Orejas
-        ctx.fillStyle = this.isFireBat ? '#e65c00' : '#2b233a';
+        ctx.fillStyle = this.isFireBat ? '#e65c00' : '#57d6ff';
         ctx.fillRect(-5, -9, 2, 3);
         ctx.fillRect(3, -9, 2, 3);
 
         // Alas de membrana animadas según frame
-        ctx.fillStyle = this.isFireBat ? '#ff3300' : '#1d1726'; // Alas rojas de lava o membranas oscuras
+        ctx.fillStyle = this.isFireBat ? '#ff3300' : '#1da9e8'; // Alas rojas de lava o azul cielo profundo
         if (this.animFrame === 0) {
             // Alas extendidas hacia arriba
             ctx.beginPath();
@@ -750,14 +769,33 @@ export class SkeletonMinion {
         this.y = y;
         this.width = 34;
         this.height = 54;
-        this.armorType = hasArmor === 'full' ? 'full' : (hasArmor === 'helmetless' ? 'helmetless' : (hasArmor ? 'armored' : 'normal'));
-        this.hasArmor = this.armorType === 'armored' || this.armorType === 'full';
+        this.armorType = hasArmor === 'full' ? 'full'
+            : (hasArmor === 'helmetless' ? 'helmetless'
+                : (hasArmor === 'helmet' ? 'helmet'
+                    : (hasArmor === 'knight_light' ? 'knight_light'
+                        : (hasArmor === 'knight_full' ? 'knight_full'
+                            : (hasArmor === 'iron_shield' ? 'iron_shield'
+                                : (hasArmor ? 'armored' : 'normal'))))));
+        this.hasArmor = ['armored', 'full', 'helmetless', 'knight_light', 'knight_full', 'iron_shield'].includes(this.armorType);
+        this.isKnight = ['knight_light', 'knight_full', 'iron_shield'].includes(this.armorType);
+        this.shieldHits = this.armorType === 'iron_shield' ? 2 : 0;
+        this.shieldBroken = false;
 
         this.vx = -1.1; // Patrulla a la izquierda inicialmente
         this.gravity = 0.5;
         this.vy = 0;
-        
-        this.maxHp = (this.armorType === 'full' || this.armorType === 'armored') ? 54 : (this.armorType === 'helmetless' ? 90 : 70);
+
+        const hpByType = {
+            normal: 30,
+            helmet: 60,
+            armored: 60,
+            full: 90,
+            helmetless: 90,
+            knight_light: 90,
+            knight_full: 135,
+            iron_shield: 90
+        };
+        this.maxHp = hpByType[this.armorType] || 30;
         this.hp = this.maxHp;
         this.active = true;
         this.damage = 12;
@@ -765,6 +803,14 @@ export class SkeletonMinion {
         this.hurtTimer = 0;
         this.animFrame = 0;
         this.animTime = 0;
+        this.visualTint = null;
+        this.visualScale = 1;
+        this.visualGroundedSprite = false;
+        this.weaponStyle = 'short';
+        this.chaseOnSight = false;
+        this.chaseRange = 320;
+        this.chaseHeightRange = 140;
+        this.chaseSpeed = 1.8;
     }
 
     update(player) {
@@ -772,15 +818,16 @@ export class SkeletonMinion {
 
         if (this.hurtTimer > 0) this.hurtTimer--;
 
-        // Si tiene armadura y el jugador está cerca, perseguirlo agresivamente
-        if (this.hasArmor && player) {
+        // Si tiene armadura o es guardia especial, perseguirlo agresivamente al verlo.
+        const canChase = this.hasArmor || this.chaseOnSight || this.visualTint === 'gold' || this.visualTint === 'red';
+        if (canChase && player) {
             const dx = (player.x + player.width/2) - (this.x + this.width/2);
             const dy = Math.abs(player.y - this.y);
             const dist = Math.abs(dx);
 
-            if (dist < 320 && dy < 140) {
+            if (dist < this.chaseRange && dy < this.chaseHeightRange) {
                 // Perseguir al caballero a velocidad rápida
-                this.vx = dx >= 0 ? 1.8 : -1.8;
+                this.vx = dx >= 0 ? this.chaseSpeed : -this.chaseSpeed;
                 // Acelerar animación de correr
                 this.animTime += 0.5;
             } else {
@@ -810,21 +857,34 @@ export class SkeletonMinion {
         if (!this.active) return;
 
         let displayDamage = amount;
-        if (this.hasArmor) {
-            // 55% de reducción de daño por tener armadura de placas
-            displayDamage = Math.max(1, Math.round(amount * 0.45));
-            particles.spawnSparks(this.x + this.width/2, this.y + this.height/2, 8, 0);
-            particles.addFloatingText(this.x + this.width/2, this.y - 20, "DEFENDIDO", "#a0a0b0", 8, false);
-            audio.playBlock(); // Sonido metálico de armadura bloqueando
+        if (this.shieldHits > 0) {
+            this.shieldHits--;
+            if (this.shieldHits <= 0) this.shieldBroken = true;
+            this.hurtTimer = 15;
+            particles.spawnSparks(this.x + this.width/2, this.y + this.height/2, 10, 0);
+            particles.addFloatingText(
+                this.x + this.width/2,
+                this.y - 20,
+                this.shieldHits > 0 ? "ESCUDO" : "ESCUDO ROTO",
+                this.shieldHits > 0 ? "#b8d7ff" : "#ffcc66",
+                8,
+                false
+            );
+            audio.playBlock();
+            return null;
+        }
+
+        if (this.hasArmor || this.armorType === 'helmet') {
+            particles.spawnSparks(this.x + this.width/2, this.y + this.height/2, 5, 0);
+            audio.playBlock();
         } else {
             audio.playHit();
         }
-
         this.hp = Math.max(0, this.hp - displayDamage);
         this.hurtTimer = 15;
-        
+
         particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 8, true);
-        particles.addFloatingText(this.x + this.width/2, this.y - 12, `-${displayDamage}`, this.hasArmor ? "#a0a0b0" : "#ffffff", 9, false);
+        particles.addFloatingText(this.x + this.width/2, this.y - 12, `-${displayDamage}`, (this.hasArmor || this.armorType === 'helmet') ? "#a0a0b0" : "#ffffff", 9, false);
 
         // Empujar ligeramente en dirección opuesta
         this.vx = (this.vx > 0 ? -0.8 : 0.8);
@@ -835,7 +895,7 @@ export class SkeletonMinion {
             audio.playCrateBreak(); // Sonido crujiente
             particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 16, true);
             particles.addFloatingText(this.x + this.width/2, this.y - 12, "BONED", "#b89700", 10, true);
-            
+
             // Suelta siempre una moneda
             return new LootItem(this.x + this.width/2 - 8, this.y + this.height - 20, 'coin');
         }
@@ -848,11 +908,19 @@ export class SkeletonMinion {
         ctx.save();
         ctx.translate(this.x + this.width/2, this.y + this.height/2);
         ctx.scale(this.vx > 0 ? -1 : 1, 1); // Orientar
+        const visualScale = this.visualScale || 1;
+        if (visualScale !== 1) ctx.scale(visualScale, visualScale);
 
         // Efecto rojo de daño
         if (this.hurtTimer > 0) {
             ctx.shadowColor = '#ff0000';
             ctx.shadowBlur = 8;
+        } else if (this.visualTint === 'gold') {
+            ctx.shadowColor = '#ffd700';
+            ctx.shadowBlur = 10;
+        } else if (this.visualTint === 'red') {
+            ctx.shadowColor = '#ff3333';
+            ctx.shadowBlur = 12;
         }
 
         // Sombra
@@ -862,56 +930,66 @@ export class SkeletonMinion {
         ctx.fill();
 
         const x = -this.width / 2;
-        const y = -this.height / 2;
+        const spriteGroundOffset = this.visualGroundedSprite ? Math.max(0, this.height - 54) : 0;
+        const y = -this.height / 2 + spriteGroundOffset;
 
         const bob = (this.animFrame === 1 || this.animFrame === 3) ? 2 : 0;
 
-        // 1. Dibujar Costillas y Columna (Blanco Hueso)
-        ctx.fillStyle = '#e6e6e6';
+        const boneColor = this.visualTint === 'gold' ? '#fff0a8' : (this.visualTint === 'red' ? '#ffd0c8' : (this.isKnight ? '#d8b48a' : '#e6e6e6'));
+        const boneShade = this.visualTint === 'gold' ? '#d7a62d' : (this.visualTint === 'red' ? '#b84b4b' : (this.isKnight ? '#b9895e' : '#d0d0d0'));
+
+        // 1. Dibujar Costillas y Columna (Blanco Hueso o tunica bajo armadura)
+        ctx.fillStyle = boneColor;
         ctx.fillRect(x + 14, y + 16 + bob, 6, 18); // columna
-        
-        ctx.fillStyle = '#d0d0d0';
+
+        ctx.fillStyle = boneShade;
         ctx.fillRect(x + 10, y + 20 + bob, 14, 3); // costilla 1
         ctx.fillRect(x + 10, y + 25 + bob, 14, 3); // costilla 2
         ctx.fillRect(x + 11, y + 30 + bob, 12, 3); // pelvis
 
         // 2. Piernas de hueso
-        ctx.fillStyle = '#d0d0d0';
+        ctx.fillStyle = boneShade;
         // Pierna Izquierda patrullando
         const lLegOffset = (this.animFrame === 1) ? 3 : ((this.animFrame === 3) ? -3 : 0);
         ctx.fillRect(x + 10 + lLegOffset, y + 34, 4, 15);
         ctx.fillRect(x + 8 + lLegOffset, y + 49, 7, 5); // pie
-        
+
         // Pierna Derecha
         const rLegOffset = (this.animFrame === 1) ? -3 : ((this.animFrame === 3) ? 3 : 0);
         ctx.fillRect(x + 20 + rLegOffset, y + 34, 4, 15);
         ctx.fillRect(x + 19 + rLegOffset, y + 49, 7, 5); // pie
 
         // 3. Brazos con espada rota de hueso
-        ctx.fillStyle = '#d0d0d0';
+        ctx.fillStyle = boneShade;
         ctx.fillRect(x + 4, y + 18 + bob, 6, 12); // brazo trasero oscilando
 
         // Brazo delantero empuñando una pequeña daga de hierro oxidada
         ctx.fillRect(x + 24, y + 20 + bob, 6, 8);
         ctx.fillStyle = '#8b5a2b'; // mango
         ctx.fillRect(x + 30, y + 22 + bob, 3, 4);
-        ctx.fillStyle = '#5a5a5a'; // hoja oxidada
-        ctx.fillRect(x + 33, y + 12 + bob, 3, 14);
+        ctx.fillStyle = this.weaponStyle === 'greatsword' ? '#d8d8e8' : '#5a5a5a'; // hoja oxidada
+        if (this.weaponStyle === 'greatsword') {
+            ctx.fillRect(x + 32, y - 4 + bob, 6, 30);
+            ctx.fillStyle = '#ffd98a';
+            ctx.fillRect(x + 29, y + 21 + bob, 11, 3);
+        } else {
+            ctx.fillRect(x + 33, y + 12 + bob, 3, 14);
+        }
 
-        // 4. Cabeza: Cráneo Esquelético
-        ctx.fillStyle = '#e6e6e6';
+        // 4. Cabeza: Cráneo Esquelético o rostro humano para caballeros del castillo
+        ctx.fillStyle = boneColor;
         ctx.fillRect(x + 10, y + 2 + bob, 14, 14);
-        
+
         // Cuencas oculares negras con brillo rojo malvado
         ctx.fillStyle = '#111111';
         ctx.fillRect(x + 12, y + 6 + bob, 4, 4);
         ctx.fillRect(x + 18, y + 6 + bob, 4, 4);
-        ctx.fillStyle = '#ff3333'; // brillo rojo
+        ctx.fillStyle = this.isKnight ? '#9ee8ff' : '#ff3333'; // brillo de ojos
         ctx.fillRect(x + 13, y + 7 + bob, 1, 1);
         ctx.fillRect(x + 19, y + 7 + bob, 1, 1);
 
         // Mandíbula/Dientes
-        ctx.fillStyle = '#d0d0d0';
+        ctx.fillStyle = boneShade;
         ctx.fillRect(x + 12, y + 13 + bob, 10, 3);
         ctx.fillStyle = '#111';
         ctx.fillRect(x + 14, y + 13 + bob, 1, 2);
@@ -919,35 +997,56 @@ export class SkeletonMinion {
         ctx.fillRect(x + 20, y + 13 + bob, 1, 2);
 
         // 5. Dibujar Armadura de Placas de Acero (Si tiene armadura)
-        if (this.hasArmor || this.armorType === 'helmetless') {
-            ctx.fillStyle = '#8e8e9e'; // Acero gris metálico
-            
-            // Pechera principal
-            ctx.fillRect(x + 8, y + 18 + bob, 18, 14);
-            
-            // Brillo metálico claro
-            ctx.fillStyle = '#c8c8d8';
-            ctx.fillRect(x + 12, y + 18 + bob, 3, 14);
+        if (this.hasArmor || this.armorType === 'helmet' || this.armorType === 'helmetless') {
+            ctx.fillStyle = this.visualTint === 'gold' ? '#c9921e' : (this.visualTint === 'red' ? '#8b1e1e' : (this.isKnight ? '#667b92' : '#8e8e9e')); // Acero gris metálico
 
-            // Hombreras (Pauldrons)
-            ctx.fillStyle = '#5a5a6a';
-            ctx.fillRect(x + 4, y + 16 + bob, 6, 6);
-            ctx.fillRect(x + 24, y + 16 + bob, 6, 6);
+            if (this.hasArmor || this.armorType === 'helmetless') {
+                // Pechera principal
+                ctx.fillRect(x + 8, y + 18 + bob, 18, 14);
 
-            if (this.hasArmor) {
+                // Brillo metálico claro
+                ctx.fillStyle = this.visualTint === 'gold' ? '#ffe27a' : (this.visualTint === 'red' ? '#ff7777' : (this.isKnight ? '#b7d1e6' : '#c8c8d8'));
+                ctx.fillRect(x + 12, y + 18 + bob, 3, 14);
+
+                // Hombreras (Pauldrons)
+                ctx.fillStyle = this.visualTint === 'gold' ? '#8c6415' : (this.visualTint === 'red' ? '#4a1010' : (this.isKnight ? '#34495e' : '#5a5a6a'));
+                ctx.fillRect(x + 4, y + 16 + bob, 6, 6);
+                ctx.fillRect(x + 24, y + 16 + bob, 6, 6);
+            }
+
+            if (this.hasArmor || this.armorType === 'helmet') {
                 // Casco gótico
-                ctx.fillStyle = '#8e8e9e';
+                ctx.fillStyle = this.visualTint === 'gold' ? '#c9921e' : (this.visualTint === 'red' ? '#8b1e1e' : (this.isKnight ? '#667b92' : '#8e8e9e'));
                 ctx.fillRect(x + 8, y - 1 + bob, 18, 10);
-                
+
                 // Cresta de casco (Acero oscuro)
-                ctx.fillStyle = '#4e4e5a';
+                ctx.fillStyle = this.visualTint === 'gold' ? '#7a5612' : (this.visualTint === 'red' ? '#2a0808' : (this.isKnight ? '#273849' : '#4e4e5a'));
                 ctx.fillRect(x + 15, y - 5 + bob, 4, 4);
 
                 // Visor (Negro con pequeña ranura de brillo de ojos malvados rojos visible)
                 ctx.fillStyle = '#111111';
                 ctx.fillRect(x + 10, y + 3 + bob, 14, 4);
-                ctx.fillStyle = '#ff0033'; // Brillo rojo del visor
+                ctx.fillStyle = this.isKnight ? '#9ee8ff' : '#ff0033'; // Brillo del visor
                 ctx.fillRect(x + 13, y + 4 + bob, 8, 2);
+            }
+        }
+
+        if (this.armorType === 'iron_shield' || this.shieldHits > 0 || this.shieldBroken) {
+            const shieldActive = this.shieldHits > 0;
+            ctx.fillStyle = shieldActive ? (this.visualTint === 'red' ? '#9b1f1f' : '#6f7f8f') : '#3a3a42';
+            ctx.fillRect(x + 1, y + 20 + bob, 11, 18);
+            ctx.strokeStyle = shieldActive ? (this.visualTint === 'red' ? '#ffcc66' : '#d8edf7') : '#8a6a4a';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x + 1, y + 20 + bob, 11, 18);
+            ctx.fillStyle = '#ffd98a';
+            ctx.fillRect(x + 5, y + 27 + bob, 3, 4);
+            if (!shieldActive) {
+                ctx.strokeStyle = '#ffcc66';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x + 2, y + 22 + bob);
+                ctx.lineTo(x + 11, y + 37 + bob);
+                ctx.stroke();
             }
         }
 
@@ -1214,7 +1313,7 @@ export class FireTrap {
         // 1. Dibujar Rejilla metálica de la trampa en el suelo
         ctx.fillStyle = '#26242e';
         ctx.fillRect(this.x, this.y, this.width, this.height);
-        
+
         ctx.strokeStyle = '#131117';
         ctx.lineWidth = 2.5;
         ctx.strokeRect(this.x, this.y, this.width, this.height);
@@ -1267,7 +1366,7 @@ export class ArrowProjectile {
         if (!this.active) return;
         ctx.save();
         ctx.translate(this.x + this.width/2, this.y + this.height/2);
-        
+
         // Orientar flecha en la dirección exacta de su velocidad 2D
         ctx.rotate(Math.atan2(this.vy, this.vx));
 
@@ -1313,7 +1412,7 @@ export class FireballProjectile {
         this.x += this.vx;
         this.y += this.vy;
         this.animTime += 0.2;
-        
+
         // Emitir pequeñas partículas de fuego detrás
         if (Math.random() > 0.4) {
             particles.spawnFire(this.x + this.width/2, this.y + this.height/2, 0.6);
@@ -1354,21 +1453,21 @@ export class SkeletonArcher {
         this.y = y;
         this.width = 34;
         this.height = 54;
-        this.armorType = hasArmor === 'full' ? 'full' : (hasArmor === 'helmetless' ? 'helmetless' : (hasArmor ? 'armored' : 'normal'));
-        this.hasArmor = this.armorType === 'armored' || this.armorType === 'full';
+        this.armorType = 'normal';
+        this.hasArmor = false;
 
         this.vx = 0; // Se queda parado por defecto si no patrulla o persigue
         this.gravity = 0.5;
         this.vy = 0;
 
-        this.maxHp = (this.armorType === 'full' || this.armorType === 'armored') ? 54 : (this.armorType === 'helmetless' ? 90 : 60);
+        this.maxHp = 10;
         this.hp = this.maxHp;
         this.active = true;
         this.damage = 10;
 
         this.hurtTimer = 0;
         this.facing = -1; // -1 = Izquierda, 1 = Derecha
-        
+
         // Estado de la IA del arquero
         this.aiState = 0; // 0 = Espera/Patrulla, 1 = Tensando Arco, 2 = Cooldown tras disparo
         this.aiTimer = 0;
@@ -1376,7 +1475,7 @@ export class SkeletonArcher {
         this.shootHeightRange = 330;
     }
 
-    update(player, arrows) {
+    update(player, arrows, viewport = null) {
         if (!this.active) return;
 
         if (this.hurtTimer > 0) this.hurtTimer--;
@@ -1388,14 +1487,19 @@ export class SkeletonArcher {
         // Determinar orientación y comportamiento hacia el jugador
         const distToPlayerX = player ? player.x + player.width/2 - (this.x + this.width/2) : 0;
         const distToPlayerY = player ? Math.abs((player.y + player.height/2) - (this.y + this.height/2)) : 0;
-        
+
         // Distancia euclidiana 2D para una detección circular perfecta
         const dist = Math.sqrt(distToPlayerX * distToPlayerX + distToPlayerY * distToPlayerY);
-        
-        // Disparar solo cuando detecta al jugador cerca, evitando lluvia de flechas desde todo el mapa.
-        if (player && Math.abs(distToPlayerX) < this.shootRange && distToPlayerY < this.shootHeightRange && dist < this.shootRange + 80) {
+        const isOnScreen = !viewport ||
+            (this.x + this.width > viewport.x &&
+            this.x < viewport.x + viewport.width &&
+            this.y + this.height > viewport.y &&
+            this.y < viewport.y + viewport.height);
+
+        // Disparar solo cuando el arquero esta visible en pantalla y detecta al jugador cerca.
+        if (player && isOnScreen && Math.abs(distToPlayerX) < this.shootRange && distToPlayerY < this.shootHeightRange && dist < this.shootRange + 80) {
             this.facing = distToPlayerX > 0 ? 1 : -1;
-            
+
             // Los arqueros acorazados no caminan hacia el jugador, defienden su posición de forma estática
             this.vx = 0;
 
@@ -1405,6 +1509,10 @@ export class SkeletonArcher {
             }
         } else {
             this.vx = 0;
+            if (this.aiState === 1) {
+                this.aiState = 0;
+                this.aiTimer = 0;
+            }
         }
 
         // Aplicar movimiento
@@ -1418,22 +1526,22 @@ export class SkeletonArcher {
                 // ¡Disparar flecha!
                 const arrowX = this.facing === 1 ? this.x + this.width + 5 : this.x - 20;
                 const arrowY = this.y + 18;
-                
+
                 // Calcular vector dirección al centro del Caballero para disparo diagonal
                 const targetX = player.x + player.width/2;
                 const targetY = player.y + player.height/2;
                 const dx = targetX - arrowX;
                 const dy = targetY - arrowY;
                 const distToTarget = Math.sqrt(dx*dx + dy*dy) || 1;
-                
+
                 const speed = 7.5;
                 const arrowVx = (dx / distToTarget) * speed;
                 const arrowVy = (dy / distToTarget) * speed;
-                
+
                 arrows.push(new ArrowProjectile(arrowX, arrowY, arrowVx, this.damage, arrowVy));
-                
+
                 audio.playSwordSwing(); // Sonido rápido
-                
+
                 this.aiState = 2; // Entrar en cooldown
                 this.aiTimer = 0;
             }
@@ -1449,29 +1557,21 @@ export class SkeletonArcher {
     takeDamage(amount) {
         if (!this.active) return null;
 
-        let displayDamage = amount;
-        if (this.hasArmor) {
-            // 55% de reducción de daño por tener armadura de placas
-            displayDamage = Math.max(1, Math.round(amount * 0.45));
-            particles.spawnSparks(this.x + this.width/2, this.y + this.height/2, 8, 0);
-            particles.addFloatingText(this.x + this.width/2, this.y - 20, "DEFENDIDO", "#a0a0b0", 8, false);
-            audio.playBlock(); // Sonido metálico de armadura bloqueando
-        } else {
-            audio.playHit();
-        }
+        const displayDamage = Math.max(amount, this.hp);
+        audio.playHit();
 
-        this.hp = Math.max(0, this.hp - displayDamage);
+        this.hp = 0;
         this.hurtTimer = 15;
 
         particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 8, true);
-        particles.addFloatingText(this.x + this.width/2, this.y - 12, `-${displayDamage}`, this.hasArmor ? "#a0a0b0" : "#ffffff", 9, false);
+        particles.addFloatingText(this.x + this.width/2, this.y - 12, `-${displayDamage}`, "#ffffff", 9, false);
 
         if (this.hp <= 0) {
             this.active = false;
             audio.playCrateBreak();
             particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 16, true);
             particles.addFloatingText(this.x + this.width/2, this.y - 12, "BONED", "#b89700", 10, true);
-            
+
             // Suelta una moneda
             return new LootItem(this.x + this.width/2 - 8, this.y + this.height - 20, 'coin');
         }
@@ -1502,7 +1602,7 @@ export class SkeletonArcher {
         // Dibujar cuerpo de esqueleto arquero (color hueso amarillento para catacumbas)
         ctx.fillStyle = '#e2dfd2';
         ctx.fillRect(x + 14, y + 16, 6, 18); // columna
-        
+
         ctx.fillStyle = '#c5c2b5';
         ctx.fillRect(x + 10, y + 20, 14, 3); // costillas
         ctx.fillRect(x + 10, y + 25, 14, 3);
@@ -1530,11 +1630,11 @@ export class SkeletonArcher {
 
         // Brazo trasero y delantero sosteniendo el Arco
         ctx.fillStyle = '#c5c2b5';
-        
+
         if (this.aiState === 1) {
             // TENSANDO ARCO
             ctx.fillRect(x + 20, y + 18, 12, 4);
-            
+
             ctx.strokeStyle = '#8b5a2b';
             ctx.lineWidth = 3;
             ctx.beginPath();
@@ -1555,13 +1655,13 @@ export class SkeletonArcher {
         } else {
             // ESTADO DE ESPERA / COOLDOWN
             ctx.fillRect(x + 22, y + 20, 4, 12);
-            
+
             ctx.strokeStyle = '#8b5a2b';
             ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.arc(x + 24, y + 34, 12, -Math.PI*0.4, Math.PI*0.6);
             ctx.stroke();
-            
+
             ctx.strokeStyle = '#e6e6e6';
             ctx.lineWidth = 0.8;
             ctx.beginPath();
@@ -1573,10 +1673,10 @@ export class SkeletonArcher {
         // 5. Dibujar Armadura de Placas de Acero (Si tiene armadura)
         if (this.hasArmor || this.armorType === 'helmetless') {
             ctx.fillStyle = '#8e8e9e'; // Acero gris metálico
-            
+
             // Pechera principal
             ctx.fillRect(x + 8, y + 18, 18, 14);
-            
+
             // Brillo metálico claro
             ctx.fillStyle = '#c8c8d8';
             ctx.fillRect(x + 12, y + 18, 3, 14);
@@ -1585,7 +1685,7 @@ export class SkeletonArcher {
                 // Casco gótico
                 ctx.fillStyle = '#8e8e9e';
                 ctx.fillRect(x + 8, y - 1, 18, 10);
-                
+
                 // Cresta del casco
                 ctx.fillStyle = '#4e4e5a';
                 ctx.fillRect(x + 15, y - 5, 4, 4);
@@ -1619,10 +1719,10 @@ export class TreasureChest {
         if (this.opened) return null;
         this.opened = true;
         audio.playBonfire(); // Sonido mágico de apertura!
-        
+
         // Generar chispas de colores
         particles.spawnSparks(this.x + this.width/2, this.y + this.height/2, 15, 0);
-        
+
         const items = [];
         if (this.contentType === 'coins') {
             // Un botín de exactamente 5 monedas
@@ -1636,11 +1736,17 @@ export class TreasureChest {
         } else if (this.contentType === 'great_potion') {
             // Una poción mayor (se usa en el cofre legendario final de nivel 4)
             items.push(new LootItem(this.x + this.width/2 - 8, this.y - 10, 'great_heart'));
+        } else if (this.contentType === 'storm_potion') {
+            // Poción mayor con tema espectral del Mundo 5
+            items.push(new LootItem(this.x + this.width/2 - 8, this.y - 10, 'great_heart'));
         } else if (this.contentType === 'berry') {
             // Baya roja para curarse cuando el jugador quiera
             items.push(new LootItem(this.x + this.width/2 - 8, this.y - 10, 'berry'));
         } else if (this.contentType === 'violet_berry') {
             // Baya violeta con vida y estamina
+            items.push(new LootItem(this.x + this.width/2 - 8, this.y - 10, 'violet_berry'));
+        } else if (this.contentType === 'berry_relic') {
+            // Baya violeta rara hasta que tenga una reliquia propia
             items.push(new LootItem(this.x + this.width/2 - 8, this.y - 10, 'violet_berry'));
         } else if (this.contentType === 'legendary_sword') {
             // La Espada de Fuego final
@@ -1663,7 +1769,7 @@ export class TreasureChest {
 
     draw(ctx) {
         ctx.save();
-        
+
         // Sombra
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(this.x + 2, this.y + this.height - 3, this.width - 4, 4);
@@ -1672,16 +1778,25 @@ export class TreasureChest {
             // Cofre Cerrado (Madera con adornos dorados)
             ctx.fillStyle = '#5c3a21'; // Madera oscura
             ctx.fillRect(this.x, this.y, this.width, this.height);
-            
+
             ctx.strokeStyle = '#ffd700'; // Bordes dorados góticos
             ctx.lineWidth = 2.5;
             ctx.strokeRect(this.x, this.y, this.width, this.height);
-            
+
             // Cerradura retro de metal
             ctx.fillStyle = '#222';
             ctx.fillRect(this.x + this.width/2 - 4, this.y + 10, 8, 8);
             ctx.fillStyle = '#ffd700';
             ctx.fillRect(this.x + this.width/2 - 2, this.y + 12, 4, 4);
+            if (this.requiresStormPuzzle && !this.unlocked) {
+                ctx.strokeStyle = '#9ee8ff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x + 6, this.y + 6, this.width - 12, this.height - 12);
+                ctx.fillStyle = '#9ee8ff';
+                ctx.fillRect(this.x + this.width / 2 - 5, this.y + 9, 10, 8);
+                ctx.fillStyle = '#101826';
+                ctx.fillRect(this.x + this.width / 2 - 1, this.y + 12, 2, 4);
+            }
         } else {
             // Cofre Abierto
             // Tapa inclinada hacia atrás
@@ -1689,11 +1804,11 @@ export class TreasureChest {
             ctx.fillRect(this.x, this.y - 10, this.width, 10);
             ctx.strokeStyle = '#b89700';
             ctx.strokeRect(this.x, this.y - 10, this.width, 10);
-            
+
             // Oro/luz brillando en el interior
             ctx.fillStyle = '#ffd700';
             ctx.fillRect(this.x + 2, this.y, this.width - 4, 6);
-            
+
             // Caja base
             ctx.fillStyle = '#5c3a21';
             ctx.fillRect(this.x, this.y + 6, this.width, this.height - 6);
@@ -1766,7 +1881,7 @@ export class LavaDroplet {
     update(platforms, floorY) {
         this.vy += this.gravity;
         this.y += this.vy;
-        
+
         // Emitir pequeñas partículas de humo/chispa rojas
         if (Math.random() > 0.6) {
             particles.spawnFire(this.x + this.width/2, this.y + this.height/2, 0.4);
@@ -1803,7 +1918,7 @@ export class LavaDroplet {
         ctx.fillStyle = '#ff4400';
         ctx.strokeStyle = '#ffd700';
         ctx.lineWidth = 1;
-        
+
         // Forma de lágrima retro
         ctx.beginPath();
         ctx.moveTo(this.x + this.width/2, this.y);
@@ -1812,7 +1927,7 @@ export class LavaDroplet {
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-        
+
         // Destello interior blanco
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(this.x + this.width/2 - 1, this.y + this.height*0.4, 2, 4);
@@ -1848,12 +1963,12 @@ export class LavaStalactite {
 
     checkCollision(player) {
         for (let drop of this.droplets) {
-            if (drop.active && 
+            if (drop.active &&
                 drop.x + drop.width > player.x &&
                 drop.x < player.x + player.width &&
                 drop.y + drop.height > player.y &&
                 drop.y < player.y + player.height) {
-                
+
                 drop.explode();
                 // 10% del daño de la vida máxima
                 const finalDamage = Math.max(5, Math.round(player.maxHp * 0.1));
@@ -1898,17 +2013,20 @@ export class LavaStalactite {
 
 // 1. DUENDE CON ESPADA (GoblinSwordsman)
 export class GoblinSwordsman {
-    constructor(x, y) {
+    constructor(x, y, combatStyle = 'blade') {
         this.x = x;
         this.y = y;
         this.width = 34;
         this.height = 54;
+        this.combatStyle = combatStyle;
+        this.hasArmor = combatStyle === 'armored' || combatStyle === 'wood_shield';
+        this.shieldHits = combatStyle === 'wood_shield' ? 1 : 0;
 
         this.vx = -1.2; // Patrulla a la izquierda inicialmente
         this.gravity = 0.5;
         this.vy = 0;
-        
-        this.maxHp = 90; // Resiste 2-3 golpes según arma equipada
+
+        this.maxHp = combatStyle === 'blade' ? 45 : 90;
         this.hp = this.maxHp;
         this.active = true;
         this.damage = 12;
@@ -1916,7 +2034,7 @@ export class GoblinSwordsman {
         this.hurtTimer = 0;
         this.animFrame = 0;
         this.animTime = 0;
-        
+
         this.chaseRange = 320;
     }
 
@@ -1958,12 +2076,26 @@ export class GoblinSwordsman {
 
     takeDamage(amount) {
         if (!this.active) return null;
+        if (this.shieldHits > 0) {
+            this.shieldHits--;
+            this.hurtTimer = 15;
+            audio.playBlock();
+            particles.spawnSparks(this.x + this.width/2, this.y + this.height/2, 8, 0);
+            particles.addFloatingText(this.x + this.width/2, this.y - 18, "ESCUDO ROTO", "#d59b45", 8, false);
+            return null;
+        }
+
         this.hp = Math.max(0, this.hp - amount);
         this.hurtTimer = 15;
-        
-        audio.playHit();
+
+        if (this.hasArmor) {
+            audio.playBlock();
+            particles.spawnSparks(this.x + this.width/2, this.y + this.height/2, 5, 0);
+        } else {
+            audio.playHit();
+        }
         particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 8, true);
-        particles.addFloatingText(this.x + this.width/2, this.y - 12, `-${amount}`, "#ffffff", 9, false);
+        particles.addFloatingText(this.x + this.width/2, this.y - 12, `-${amount}`, this.hasArmor ? "#a0a0b0" : "#ffffff", 9, false);
 
         // Empujar ligeramente
         this.vx = this.vx > 0 ? -1.0 : 1.0;
@@ -1973,7 +2105,7 @@ export class GoblinSwordsman {
             audio.playCrateBreak();
             particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 16, true);
             particles.addFloatingText(this.x + this.width/2, this.y - 12, "DEFEATED", "#2ecc71", 10, true);
-            
+
             return new LootItem(this.x + this.width/2 - 8, this.y + this.height - 20, 'coin');
         }
         return null;
@@ -1982,7 +2114,7 @@ export class GoblinSwordsman {
     draw(ctx) {
         if (!this.active) return;
         ctx.save();
-        
+
         // Sombra
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.beginPath();
@@ -1991,10 +2123,10 @@ export class GoblinSwordsman {
 
         ctx.translate(this.x + this.width/2, this.y + this.height/2);
         ctx.scale(this.vx > 0 ? 1 : -1, 1); // Orientar al caminar
-        
+
         const xOffset = -this.width/2;
         const yOffset = -this.height/2;
-        
+
         if (this.hurtTimer > 0) {
             ctx.shadowColor = '#ff0000';
             ctx.shadowBlur = 8;
@@ -2003,7 +2135,7 @@ export class GoblinSwordsman {
         // Cabeza goblínica verde
         ctx.fillStyle = '#2ecc71';
         ctx.fillRect(xOffset + 8, yOffset + 6, 18, 16);
-        
+
         // Orejas largas
         ctx.beginPath();
         ctx.moveTo(xOffset + 8, yOffset + 12);
@@ -2011,7 +2143,7 @@ export class GoblinSwordsman {
         ctx.lineTo(xOffset + 8, yOffset + 16);
         ctx.closePath();
         ctx.fill();
-        
+
         ctx.beginPath();
         ctx.moveTo(xOffset + 26, yOffset + 12);
         ctx.lineTo(xOffset + 34, yOffset + 8);
@@ -2022,17 +2154,24 @@ export class GoblinSwordsman {
         // Ojos rojos malvados
         ctx.fillStyle = '#e74c3c';
         ctx.fillRect(xOffset + 18, yOffset + 10, 4, 3);
-        
+
         // Chaleco de cuero marrón
-        ctx.fillStyle = '#784212';
+        ctx.fillStyle = this.hasArmor ? '#5a6470' : '#784212';
         ctx.fillRect(xOffset + 6, yOffset + 22, 22, 22);
-        
+        if (this.hasArmor) {
+            ctx.fillStyle = '#aeb8c2';
+            ctx.fillRect(xOffset + 10, yOffset + 22, 4, 22);
+            ctx.fillStyle = '#414a53';
+            ctx.fillRect(xOffset + 4, yOffset + 21, 6, 7);
+            ctx.fillRect(xOffset + 24, yOffset + 21, 6, 7);
+        }
+
         // Piernas verdes
         const bounce = (this.animFrame === 1 || this.animFrame === 3) ? 3 : 0;
         ctx.fillStyle = '#2ecc71';
         ctx.fillRect(xOffset + 4, yOffset + 44 - bounce, 8, 10);
         ctx.fillRect(xOffset + 22, yOffset + 44 + bounce, 8, 10);
-        
+
         // Zapatos marrones
         ctx.fillStyle = '#4a2700';
         ctx.fillRect(xOffset + 2, yOffset + 52 - bounce, 11, 3);
@@ -2043,7 +2182,17 @@ export class GoblinSwordsman {
         ctx.fillRect(xOffset + 24, yOffset + 26, 14, 4);
         ctx.fillStyle = '#d35400'; // Mango
         ctx.fillRect(xOffset + 21, yOffset + 26, 3, 4);
-        
+
+        if (this.combatStyle === 'wood_shield') {
+            ctx.fillStyle = this.shieldHits > 0 ? '#8b5a2b' : '#4b2d13';
+            ctx.fillRect(xOffset - 2, yOffset + 24, 12, 17);
+            ctx.strokeStyle = '#d59b45';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(xOffset - 2, yOffset + 24, 12, 17);
+            ctx.fillStyle = '#4a2700';
+            ctx.fillRect(xOffset + 3, yOffset + 25, 2, 15);
+        }
+
         ctx.restore();
     }
 }
@@ -2060,20 +2209,21 @@ export class GoblinArcher {
         this.gravity = 0.5;
         this.vy = 0;
 
-        this.maxHp = 90;
+        this.maxHp = 10;
         this.hp = this.maxHp;
         this.active = true;
         this.damage = 10;
 
         this.hurtTimer = 0;
         this.facing = -1; // -1 = Izquierda, 1 = Derecha
-        
+
         this.aiState = 0; // 0 = Espera, 1 = Tensando Arco, 2 = Cooldown
         this.aiTimer = 0;
-        this.shootRange = 9999;
+        this.shootRange = 620;
+        this.shootHeightRange = 330;
     }
 
-    update(player, arrows) {
+    update(player, arrows, viewport = null) {
         if (!this.active) return;
 
         if (this.hurtTimer > 0) this.hurtTimer--;
@@ -2081,15 +2231,26 @@ export class GoblinArcher {
         this.vy += this.gravity;
         this.y += this.vy;
 
-        // Detectar jugador
-        if (player) {
-            const distToPlayerX = player.x + player.width/2 - (this.x + this.width/2);
+        const distToPlayerX = player ? player.x + player.width/2 - (this.x + this.width/2) : 0;
+        const distToPlayerY = player ? Math.abs((player.y + player.height/2) - (this.y + this.height/2)) : 0;
+        const dist = Math.sqrt(distToPlayerX * distToPlayerX + distToPlayerY * distToPlayerY);
+        const isOnScreen = !viewport ||
+            (this.x + this.width > viewport.x &&
+            this.x < viewport.x + viewport.width &&
+            this.y + this.height > viewport.y &&
+            this.y < viewport.y + viewport.height);
+
+        // Detectar jugador solo si el arquero esta visible en la pantalla.
+        if (player && isOnScreen && Math.abs(distToPlayerX) < this.shootRange && distToPlayerY < this.shootHeightRange && dist < this.shootRange + 80) {
             this.facing = distToPlayerX > 0 ? 1 : -1;
-            
+
             if (this.aiState === 0) {
                 this.aiState = 1;
                 this.aiTimer = 0;
             }
+        } else if (this.aiState === 1) {
+            this.aiState = 0;
+            this.aiTimer = 0;
         }
 
         this.aiTimer++;
@@ -2105,11 +2266,11 @@ export class GoblinArcher {
                 const speed = 8.0;
                 const arrowVx = (dx / distToTarget) * speed;
                 const arrowVy = (dy / distToTarget) * speed;
-                
+
                 // Dispara una flecha rápida apuntando al jugador
                 arrows.push(new ArrowProjectile(arrowX, arrowY, arrowVx, this.damage, arrowVy));
                 audio.playSwordSwing();
-                
+
                 this.aiState = 2;
                 this.aiTimer = 0;
             }
@@ -2123,19 +2284,20 @@ export class GoblinArcher {
 
     takeDamage(amount) {
         if (!this.active) return null;
-        this.hp = Math.max(0, this.hp - amount);
+        const displayDamage = Math.max(amount, this.hp);
+        this.hp = 0;
         this.hurtTimer = 15;
-        
+
         audio.playHit();
         particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 8, true);
-        particles.addFloatingText(this.x + this.width/2, this.y - 12, `-${amount}`, "#ffffff", 9, false);
+        particles.addFloatingText(this.x + this.width/2, this.y - 12, `-${displayDamage}`, "#ffffff", 9, false);
 
         if (this.hp <= 0) {
             this.active = false;
             audio.playCrateBreak();
             particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 16, true);
             particles.addFloatingText(this.x + this.width/2, this.y - 12, "DEFEATED", "#2ecc71", 10, true);
-            
+
             return new LootItem(this.x + this.width/2 - 8, this.y + this.height - 20, 'coin');
         }
         return null;
@@ -2144,7 +2306,7 @@ export class GoblinArcher {
     draw(ctx) {
         if (!this.active) return;
         ctx.save();
-        
+
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.beginPath();
         ctx.ellipse(this.x + this.width/2, this.y + this.height - 2, 14, 3, 0, 0, Math.PI*2);
@@ -2152,10 +2314,10 @@ export class GoblinArcher {
 
         ctx.translate(this.x + this.width/2, this.y + this.height/2);
         ctx.scale(this.facing, 1);
-        
+
         const xOffset = -this.width/2;
         const yOffset = -this.height/2;
-        
+
         if (this.hurtTimer > 0) {
             ctx.shadowColor = '#ff0000';
             ctx.shadowBlur = 8;
@@ -2164,11 +2326,11 @@ export class GoblinArcher {
         // Cabeza verde
         ctx.fillStyle = '#2ecc71';
         ctx.fillRect(xOffset + 8, yOffset + 6, 18, 16);
-        
+
         // Capucha verde oscura goblínica
         ctx.fillStyle = '#1b5e20';
         ctx.fillRect(xOffset + 6, yOffset + 2, 22, 6);
-        
+
         // Orejas
         ctx.fillStyle = '#2ecc71';
         ctx.beginPath();
@@ -2177,7 +2339,7 @@ export class GoblinArcher {
         ctx.lineTo(xOffset + 8, yOffset + 16);
         ctx.closePath();
         ctx.fill();
-        
+
         ctx.beginPath();
         ctx.moveTo(xOffset + 26, yOffset + 12);
         ctx.lineTo(xOffset + 34, yOffset + 8);
@@ -2187,16 +2349,16 @@ export class GoblinArcher {
 
         ctx.fillStyle = '#ffd700'; // Ojos amarillos
         ctx.fillRect(xOffset + 18, yOffset + 10, 4, 3);
-        
+
         // Túnica verde bosque
         ctx.fillStyle = '#1b5e20';
         ctx.fillRect(xOffset + 6, yOffset + 22, 22, 22);
-        
+
         // Piernas
         ctx.fillStyle = '#2ecc71';
         ctx.fillRect(xOffset + 8, yOffset + 44, 7, 10);
         ctx.fillRect(xOffset + 19, yOffset + 44, 7, 10);
-        
+
         // Arco de madera rústico
         ctx.strokeStyle = '#8b5a2b';
         ctx.lineWidth = 2.5;
@@ -2216,16 +2378,16 @@ export class ChasingBird {
         this.width = 32;
         this.height = 24;
 
-        this.maxHp = 65;
+        this.maxHp = 10;
         this.hp = this.maxHp;
         this.active = true;
         this.damage = 8;
-        
+
         this.chaseSpeed = 2.2;
         this.sineTimer = Math.random() * 100;
         this.animFrame = 0;
         this.animTime = 0;
-        
+
         this.chaseRange = 500;
         this.targetX = x; // Para orientación
     }
@@ -2257,7 +2419,7 @@ export class ChasingBird {
         if (!this.active) return null;
         this.hp = Math.max(0, this.hp - amount);
         this.hurtTimer = 12;
-        
+
         audio.playHit();
         particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 6, false);
         particles.addFloatingText(this.x + this.width/2, this.y - 5, `-${amount}`, "#ff3333");
@@ -2265,7 +2427,7 @@ export class ChasingBird {
         if (this.hp > 0) return null;
 
         this.active = false;
-        
+
         particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 8, false);
         particles.addFloatingText(this.x + this.width/2, this.y - 5, "SLAY", "#ff3333");
 
@@ -2323,6 +2485,400 @@ export class ChasingBird {
         } else {
             ctx.ellipse(-4, 6, 5, 8, Math.PI/6, 0, Math.PI*2);
         }
+        ctx.fill();
+
+        ctx.restore();
+    }
+}
+
+// ==========================================================================
+// EXPANSIÓN MUNDO 5: ENTIDADES ESPECTRALES (SpectralPortal, VoidPlatform, SpectralWraith)
+// ==========================================================================
+
+export class SpectralPortal {
+    constructor(x, y, targetX, targetY, direction = 'horizontal') {
+        this.x = x;
+        this.y = y;
+        this.width = 48;
+        this.height = 64;
+        this.targetX = targetX;
+        this.targetY = targetY;
+        this.direction = direction; // 'horizontal' o 'vertical'
+        this.pulseTime = Math.random() * Math.PI * 2;
+        this.cooldown = 0; // Prevenir bucles infinitos de teletransportes consecutivos
+    }
+
+    update() {
+        this.pulseTime += 0.05;
+        if (this.cooldown > 0) this.cooldown--;
+    }
+
+    teleport(player) {
+        if (this.cooldown > 0) return false;
+
+        // Teletransportar al jugador al centro del portal de destino
+        player.x = this.targetX + 8;
+        player.y = this.targetY + 8;
+        player.vx = 0;
+        player.vy = 0;
+
+        // Generar chispas violetas en el portal de entrada
+        particles.spawnCollectGlow(this.x + this.width/2, this.y + this.height/2, '#b642f5', 18);
+        // Generar chispas violetas en el portal de destino
+        particles.spawnCollectGlow(this.targetX + 24, this.targetY + 32, '#8f34d1', 18);
+
+        audio.playPortal(); // Sonido procedural del teletransporte
+
+        particles.addFloatingText(player.x, player.y - 20, "VACÍO", "#b642f5", 10, true);
+        return true;
+    }
+
+    checkTeleport(player) {
+        if (this.cooldown > 0) return false;
+
+        // Colisión AABB con el jugador
+        const overlaps = player.x < this.x + this.width &&
+                         player.x + player.width > this.x &&
+                         player.y < this.y + this.height &&
+                         player.y + player.height > this.y;
+
+        if (overlaps) {
+            return this.teleport(player);
+        }
+        return false;
+    }
+
+    draw(ctx) {
+        ctx.save();
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+        const pulse = Math.sin(this.pulseTime) * 3;
+
+        // 1. Destello nebuloso
+        const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, 32 + pulse);
+        grad.addColorStop(0, 'rgba(182, 66, 245, 0.7)');
+        grad.addColorStop(0.6, 'rgba(143, 52, 209, 0.25)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 32 + pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2. Pilares de piedra del portal (Estilo gótico ruina)
+        ctx.fillStyle = '#2d2c33';
+        ctx.fillRect(this.x, this.y + 12, 8, this.height - 12);
+        ctx.fillRect(this.x + this.width - 8, this.y + 12, 8, this.height - 12);
+        ctx.strokeStyle = '#15141a';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(this.x, this.y + 12, 8, this.height - 12);
+        ctx.strokeRect(this.x + this.width - 8, this.y + 12, 8, this.height - 12);
+
+        // 3. Arco de energía rúnica violeta arriba
+        ctx.strokeStyle = '#b642f5';
+        ctx.lineWidth = 3;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#b642f5';
+        ctx.beginPath();
+        ctx.arc(cx, this.y + 16, 20, Math.PI, 0);
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#d9f6ff';
+        ctx.font = "8px 'Press Start 2P', monospace";
+        ctx.textAlign = 'center';
+        ctx.fillText('E', cx, this.y - 6);
+
+        ctx.restore();
+    }
+}
+
+export class VoidPlatform extends Platform {
+    constructor(x, y, width, height = 22) {
+        super(x, y, width, height, 'stone');
+        this.visibleTimer = 0; // Si es mayor que 0, es visible y sólida. Si no, es etérea.
+        this.pulseTime = Math.random() * Math.PI * 2;
+    }
+
+    reveal(duration = 180) {
+        if (this.visibleTimer === 0) {
+            particles.spawnCollectGlow(this.x + this.width/2, this.y, '#b642f5', 6);
+        }
+        this.visibleTimer = Math.max(this.visibleTimer, duration);
+    }
+
+    update(player = null) {
+        this.pulseTime += 0.06;
+        if (player && this.visibleTimer > 0) {
+            const playerBottom = player.y + player.height;
+            const horizontalOverlap = player.x + player.width > this.x + 6 && player.x < this.x + this.width - 6;
+            const standingOnTop = horizontalOverlap && playerBottom >= this.y - 10 && playerBottom <= this.y + this.height + 18;
+            if (standingOnTop) {
+                this.visibleTimer = Math.max(this.visibleTimer, 90);
+            }
+        }
+        if (this.visibleTimer > 0) {
+            this.visibleTimer--;
+        }
+    }
+
+    draw(ctx) {
+        // Solo dibujar si es visible o está a punto de revelarse de forma translúcida
+        ctx.save();
+        const pulse = Math.sin(this.pulseTime) * 0.15;
+
+        if (this.visibleTimer > 0) {
+            // Sólida y reluciente (Violeta / Celeste rúnico)
+            const alpha = Math.min(1.0, this.visibleTimer / 25);
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = '#100c14'; // Piedra del vacío
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+
+            ctx.strokeStyle = `rgba(182, 66, 245, ${0.75 + pulse})`;
+            ctx.lineWidth = 2.5;
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = '#b642f5';
+            ctx.strokeRect(this.x, this.y, this.width, this.height);
+
+            // Runas
+            ctx.fillStyle = this.visibleTimer < 90 && Math.floor(this.visibleTimer / 8) % 2 === 0
+                ? `rgba(217, 246, 255, ${alpha})`
+                : `rgba(143, 52, 209, ${alpha})`;
+            for (let rx = this.x + 12; rx < this.x + this.width - 12; rx += 28) {
+                ctx.fillRect(rx, this.y + 7, 10, 4);
+            }
+        } else {
+            // Echérea e invisible, pero con siluetas puntuales translúcidas intermitentes
+            ctx.globalAlpha = 0.07 + Math.max(0, Math.sin(this.pulseTime) * 0.05);
+            ctx.fillStyle = '#9ee8ff';
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.strokeStyle = 'rgba(182, 66, 245, 0.25)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(this.x, this.y, this.width, this.height);
+        }
+
+        ctx.restore();
+    }
+}
+
+export class SpectralWraith {
+    constructor(x, y, variant = 'blade') {
+        this.x = x;
+        this.y = y;
+        this.width = 36;
+        this.height = 42;
+        this.variant = variant;
+        this.maxHp = variant === 'staff' ? 24 : 32;
+        this.hp = this.maxHp;
+        this.active = true;
+        this.damage = variant === 'staff' ? 8 : 12;
+        this.hurtTimer = 0;
+
+        this.floatTimer = Math.random() * Math.PI * 2;
+        this.speed = variant === 'staff' ? 1.25 : 1.85;
+        this.attackCooldown = variant === 'staff' ? 120 + Math.random() * 60 : 90 + Math.random() * 50;
+        this.facing = -1;
+        this.targetX = x;
+
+        this.chaseRange = variant === 'staff' ? 620 : 500;
+    }
+
+    update(player, game = null) {
+        if (!this.active) return;
+
+        if (this.hurtTimer > 0) this.hurtTimer--;
+        if (this.attackCooldown > 0) this.attackCooldown--;
+
+        this.floatTimer += 0.05;
+        this.y += Math.sin(this.floatTimer) * 0.25; // Flotación vertical fantasmagórica
+
+        if (player) {
+            const dx = (player.x + player.width/2) - (this.x + this.width/2);
+            const dy = (player.y + player.height/2) - (this.y + this.height/2);
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < 1) return;
+
+            this.facing = dx < 0 ? -1 : 1;
+            this.targetX = player.x;
+
+            if (dist < this.chaseRange) {
+                if (this.variant === 'staff') {
+                    const keepAway = dist < 260 ? -1 : 1;
+                    this.x += (dx / dist) * this.speed * keepAway;
+                    this.y += (dy / dist) * this.speed * 0.45;
+
+                    if (this.attackCooldown <= 0 && game) {
+                        this.attackCooldown = 135 + Math.random() * 70;
+                        game.arrows.push(new FatuoProjectile(this.x + this.width/2, this.y + this.height/2, player, 'blue_fire'));
+                        audio.playPortal();
+                    }
+                } else {
+                    // Espadachín espectral: persigue atravesando paredes y plataformas.
+                    this.x += (dx / dist) * this.speed;
+                    this.y += (dy / dist) * this.speed;
+                }
+            } else {
+                // Patrullar sinusoidal
+                this.x += Math.sin(this.floatTimer * 0.5) * 0.85;
+            }
+        }
+    }
+
+    takeDamage(amount = 10) {
+        if (!this.active) return null;
+        this.hp = Math.max(0, this.hp - amount);
+        this.hurtTimer = 12;
+
+        audio.playHit();
+        particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 8, false);
+        particles.addFloatingText(this.x + this.width/2, this.y - 5, `-${amount}`, "#ff3333");
+
+        if (this.hp > 0) return null;
+
+        this.active = false;
+        particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 12, false);
+        particles.addFloatingText(this.x + this.width/2, this.y - 5, "FALLECIDO", "#b642f5", 11, true);
+
+        const dropType = this.customDrop || (Math.random() < 0.2 ? 'violet_berry' : 'coin');
+        return new LootItem(this.x + this.width/2 - 8, this.y + this.height/2, dropType);
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        ctx.save();
+        ctx.translate(this.x + this.width/2, this.y + this.height/2);
+        const scale = this.isMiniBoss ? 1.45 : 1;
+        ctx.scale(-this.facing * scale, scale); // Orientar
+
+        // Efecto fantasma translúcido
+        ctx.globalAlpha = this.isMiniBoss ? 0.86 : 0.65;
+        if (this.hurtTimer > 0) {
+            ctx.shadowColor = '#ff0000';
+            ctx.shadowBlur = 10;
+        } else {
+            ctx.shadowColor = this.isMiniBoss ? '#d9f6ff' : '#b642f5';
+            ctx.shadowBlur = this.isMiniBoss ? 18 : 12;
+        }
+
+        // Túnica espectral flotante (Violeta / Gris oscuro)
+        ctx.fillStyle = this.isMiniBoss ? '#0d1525' : '#1c0f2b'; // Túnica base
+        ctx.beginPath();
+        ctx.moveTo(-12, -15);
+        ctx.quadraticCurveTo(0, -22, 12, -15);
+        ctx.lineTo(8, 20);
+        ctx.lineTo(-8, 20);
+        ctx.closePath();
+        ctx.fill();
+
+        // Cola espectral flotante ondulante
+        const tailWave = Math.sin(this.floatTimer * 2) * 5;
+        ctx.fillStyle = this.isMiniBoss ? '#12385a' : '#391d58';
+        ctx.beginPath();
+        ctx.moveTo(-8, 20);
+        ctx.quadraticCurveTo(-12, 30, tailWave, 35);
+        ctx.quadraticCurveTo(12, 30, 8, 20);
+        ctx.closePath();
+        ctx.fill();
+
+        // Máscara espectral (Blanco Hueso)
+        ctx.fillStyle = '#ececf2';
+        ctx.beginPath();
+        ctx.arc(0, -6, 7, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Ranura de los ojos (Vacío brillante cian)
+        ctx.fillStyle = this.isMiniBoss ? '#ff3333' : '#00ffff';
+        ctx.fillRect(-4, -8, 2, 2);
+        ctx.fillRect(2, -8, 2, 2);
+
+        if (this.variant === 'staff') {
+            ctx.strokeStyle = '#72d7ff';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(13, -18);
+            ctx.lineTo(13, 24);
+            ctx.stroke();
+            ctx.fillStyle = '#00cfff';
+            ctx.beginPath();
+            ctx.arc(13, -22, 5 + Math.sin(this.floatTimer * 2) * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            ctx.strokeStyle = '#d9f6ff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(12, -2);
+            ctx.lineTo(26, -20);
+            ctx.stroke();
+            ctx.fillStyle = '#00ffff';
+            ctx.fillRect(24, -23, 4, 6);
+        }
+
+        ctx.restore();
+    }
+}
+
+export class FatuoProjectile {
+    constructor(x, y, player, variant = 'void') {
+        this.x = x;
+        this.y = y;
+        this.width = 12;
+        this.height = 12;
+        this.active = true;
+        this.variant = variant;
+        this.damage = variant === 'blue_fire' ? 12 : 10;
+
+        // Físicas teledirigidas suaves hacia la posición actual del Caballero
+        this.player = player;
+        this.vx = 0;
+        this.vy = 0;
+        this.speed = variant === 'blue_fire' ? 2.75 : 2.4;
+        this.life = 250; // Desaparece tras 4 segundos
+        this.pulseTime = Math.random() * Math.PI * 2;
+    }
+
+    update() {
+        this.life--;
+        if (this.life <= 0) this.active = false;
+
+        this.pulseTime += 0.12;
+
+        if (this.player && this.active) {
+            const dx = (this.player.x + this.player.width/2) - (this.x + this.width/2);
+            const dy = (this.player.y + this.player.height/2) - (this.y + this.height/2);
+            const dist = Math.sqrt(dx*dx + dy*dy);
+
+            if (dist > 5) {
+                // Modulación progresiva de velocidad hacia el Caballero (suavizado)
+                const targetVx = (dx / dist) * this.speed;
+                const targetVy = (dy / dist) * this.speed;
+
+                this.vx = this.vx * 0.95 + targetVx * 0.05;
+                this.vy = this.vy * 0.95 + targetVy * 0.05;
+            }
+        }
+
+        this.x += this.vx;
+        this.y += this.vy;
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        ctx.save();
+
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+        const pulse = Math.sin(this.pulseTime) * 2.5;
+
+        const innerColor = this.variant === 'blue_fire' ? '#ffffff' : '#00ffff';
+        const middleColor = this.variant === 'blue_fire' ? 'rgba(0, 170, 255, 0.9)' : 'rgba(182, 66, 245, 0.85)';
+
+        // Aura radial brillante
+        const grad = ctx.createRadialGradient(cx, cy, 1, cx, cy, 8 + pulse);
+        grad.addColorStop(0, innerColor);
+        grad.addColorStop(0.5, middleColor);
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 8 + pulse, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.restore();

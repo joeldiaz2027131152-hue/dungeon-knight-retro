@@ -43,7 +43,7 @@ export class BossProjectile {
 
         ctx.save();
         ctx.translate(this.x + this.width/2, this.y + this.height/2);
-        
+
         const scale = 1.0 + Math.sin(this.pulseTime) * 0.15;
         ctx.scale(scale, scale);
 
@@ -141,23 +141,23 @@ export class SkeletonBoss {
         // Vida masiva del boss
         this.maxHp = 300;
         this.hp = 300;
-        
+
         // Fases
         this.phase = 1; // Fase 1 normal, Fase 2 furia roja por debajo de 50% HP
-        
+
         // Inteligencia Artificial (Estados)
         // 'idle', 'chase', 'slamPre', 'slamStrike', 'summon', 'leapPre', 'leapAir', 'leapSlam', 'hurt', 'dead'
         this.state = 'idle';
         this.stateTimer = 60; // frames
         this.facing = -1; // Comienza mirando a la izquierda (hacia el héroe)
-        
+
         // Físicas y movimiento
         this.vx = 0;
         this.vy = 0;
         this.speed = 1.9;
         this.gravity = 0.5;
         this.isGrounded = false;
-        
+
         // Ataques e Hitboxes
         this.cooldowns = {
             slam: 0,
@@ -169,7 +169,7 @@ export class SkeletonBoss {
         this.animTime = 0;
         this.wingAngle = 0;
         this.wingFlapSpeed = 0.05;
-        
+
         // Referencia para generar proyectiles y ondas sísmicas en el bucle
         this.spawnedProjectiles = [];
         this.spawnedShockwaves = [];
@@ -202,7 +202,7 @@ export class SkeletonBoss {
             particles.addFloatingText(this.x + this.width/2, this.y - 30, "PHASE II: RED FURY", "#ff0033", 14, true);
             audio.playBonfire(); // Sonido mágico dramático
             this.shouldTriggerShake = true;
-            
+
             // Explosión de chispas rojas
             particles.spawnSparks(this.x + this.width/2, this.y + this.height/2, 30, 0);
         }
@@ -219,7 +219,7 @@ export class SkeletonBoss {
                 this.y = floorY - this.height;
                 this.vy = 0;
                 this.isGrounded = true;
-                
+
                 // Si venía de una caída por Leap Attack
                 if (this.state === 'leapAir') {
                     this.triggerLeapLand(player, floorY);
@@ -254,7 +254,7 @@ export class SkeletonBoss {
 
     chooseNextState(player, floorY) {
         const dx = Math.abs((player.x + player.width/2) - (this.x + this.width/2));
-        
+
         // Máquina de estados agresiva
         if (this.state === 'idle' || this.state === 'chase') {
             if (dx < 190 && this.cooldowns.slam <= 0) {
@@ -297,7 +297,7 @@ export class SkeletonBoss {
                 const dirX = (player.x + player.width/2 < this.x + this.width/2) ? -1 : 1;
                 this.vx = dirX * this.speed;
                 this.x += this.vx;
-                
+
                 // Detenerse solo cuando está muy cerca (zona de ataque)
                 const distance = Math.abs((player.x + player.width/2) - (this.x + this.width/2));
                 if (distance < 100) {
@@ -376,12 +376,12 @@ export class SkeletonBoss {
     triggerHammerImpact(player, floorY) {
         audio.playDeath(); // Ruido profundo del martillazo
         this.shouldTriggerShake = true;
-        
+
         // Chispas del impacto de roca
         const impactX = this.x + this.width/2 + (this.facing * 85);
         particles.spawnWoodSplinters(impactX, floorY, 15); // astillas grises que simulan piedra
         particles.spawnDust(impactX, floorY - 5, 12);
-        
+
         // Cooldown
         this.cooldowns.slam = 80; // ~1.3 segundos (más agresivo)
 
@@ -406,14 +406,14 @@ export class SkeletonBoss {
     // 2. Invocar Calaveras de Fuego
     triggerSummonFire() {
         audio.playBonfire();
-        
+
         const spawnX = this.x + this.width/2;
         const spawnY = this.y + 20;
 
         // Disparar 3 proyectiles en abanico hacia donde mire
         const projCount = this.phase === 2 ? 4 : 2;
         const speed = 4.5;
-        
+
         if (projCount === 2) {
             this.spawnedProjectiles.push(new BossProjectile(spawnX, spawnY, this.facing * speed, -1));
             this.spawnedProjectiles.push(new BossProjectile(spawnX, spawnY, this.facing * speed, 1));
@@ -424,7 +424,7 @@ export class SkeletonBoss {
             this.spawnedProjectiles.push(new BossProjectile(spawnX, spawnY, this.facing * speed, 0.7));
             this.spawnedProjectiles.push(new BossProjectile(spawnX, spawnY, this.facing * speed, 2.2));
         }
-        
+
         this.cooldowns.summon = 180; // 3 segundos
     }
 
@@ -434,7 +434,7 @@ export class SkeletonBoss {
         this.stateTimer = 45; // Frames de recuperación inmovilizado
         this.vx = 0;
         this.vy = 0;
-        
+
         audio.playDeath();
         this.shouldTriggerShake = true;
         this.cooldowns.leap = 300; // 5 segundos de recarga para este ataque masivo
@@ -443,7 +443,7 @@ export class SkeletonBoss {
         // Explosión de fuego y polvo en la zona de aterrizaje
         particles.spawnWoodSplinters(impactX, floorY, 25);
         particles.spawnDust(impactX, floorY - 5, 20);
-        
+
         // Fuego masivo a los lados
         for (let i = 0; i < 8; i++) {
             particles.spawnFire(impactX + (Math.random() - 0.5) * 80, floorY - 10, 1.8, true);
@@ -515,7 +515,7 @@ export class SkeletonBoss {
         // 1. DIBUJAR ALAS GIGANTES DE GÁRGOLA (Capa trasera)
         ctx.save();
         ctx.translate(x + w / 2, y + 55 + floatBob);
-        
+
         ctx.fillStyle = '#1d1726'; // Morado oscuro/negro
         ctx.strokeStyle = '#0e0b12';
         ctx.lineWidth = 2.5;
@@ -580,13 +580,13 @@ export class SkeletonBoss {
         // Costillas Gigantes de Hueso Oscuro
         ctx.fillStyle = '#dcdce5';
         ctx.fillRect(-18, -12, 36, 32); // Estructura columna central del boss
-        
+
         ctx.fillStyle = '#b8b8c4'; // Huecos/Costillas
         ctx.fillRect(-26, -6, 52, 4);
         ctx.fillRect(-28, 2, 56, 4);
         ctx.fillRect(-24, 10, 48, 4);
         ctx.fillRect(-20, 18, 40, 4);
-        
+
         // Núcleo de Energía en el Pecho (Rojo brillante). En fase 2 brilla violento
         const coreColor = (this.phase === 2 && Math.floor(this.animTime / 5) % 2 === 0) ? '#ff6666' : '#ff0033';
         ctx.fillStyle = coreColor;
@@ -623,7 +623,7 @@ export class SkeletonBoss {
         // Dibujar brazo óseo gordo
         ctx.fillStyle = '#dcdce5';
         ctx.fillRect(-6, 0, 12, 28);
-        
+
         // Mango de Madera del Martillo Gigante
         ctx.fillStyle = '#5c3a21'; // Marrón madera
         ctx.fillRect(-3, 10, 6, 75); // Mango largo de 75px
@@ -632,11 +632,11 @@ export class SkeletonBoss {
         ctx.fillStyle = '#5c5c68'; // Roca gris oscuro
         ctx.strokeStyle = '#2d2d35';
         ctx.lineWidth = 3;
-        
+
         // Caja de piedra principal
         ctx.fillRect(-22, 65, 44, 34);
         ctx.strokeRect(-22, 65, 44, 34);
-        
+
         // Runas brillantes grabadas en el martillo (Fase 2 rojas, Fase 1 amarillas)
         ctx.fillStyle = this.phase === 2 ? '#ff3300' : '#ffd700';
         ctx.fillRect(-12, 76, 24, 3);
@@ -668,7 +668,7 @@ export class SkeletonBoss {
         ctx.fillStyle = '#eef0f8';
         ctx.strokeStyle = '#b0b2c0';
         ctx.lineWidth = 1.5;
-        
+
         // Base de cabeza redonda
         ctx.beginPath();
         ctx.arc(0, -6, 22, 0, Math.PI*2);
@@ -683,7 +683,7 @@ export class SkeletonBoss {
         ctx.fillStyle = '#0b0b0f';
         ctx.fillRect(-13, -4, 8, 7);
         ctx.fillRect(5, -4, 8, 7);
-        
+
         // Destellos de ojos (Phase 2 -> Fuego rojo gigante; Phase 1 -> Fuego amarillo)
         const eyeColor = this.phase === 2 ? '#ff0033' : '#ff9900';
         ctx.fillStyle = eyeColor;
@@ -716,7 +716,7 @@ export class SkeletonBoss {
         ctx.fillStyle = '#d1a115'; // Oro
         ctx.strokeStyle = '#7c5f08';
         ctx.lineWidth = 1.5;
-        
+
         ctx.beginPath();
         ctx.moveTo(-22, -18);
         ctx.lineTo(-24, -36); // pico izq
@@ -810,7 +810,7 @@ export class VolcanicMeteor {
         this.width = 22;
         this.height = 22;
         this.targetX = targetX;
-        
+
         // Caer en diagonal hacia el jugador
         this.vx = (targetX - x) * 0.015;
         this.vy = 4.8;
@@ -1048,7 +1048,7 @@ export class FireDemonBoss {
                 this.x += this.vx;
                 // Emitir fuego detrás
                 particles.spawnFire(this.x + this.width/2, this.y + this.height - 20, 1.5, true);
-                
+
                 // Comprobar colisión directa con el jugador durante la embestida
                 if (Math.abs((player.x + player.width/2) - (this.x + this.width/2)) < 80) {
                     player.takeDamage(15, this.facing * 7.5, this.x + this.width/2);
@@ -1056,7 +1056,7 @@ export class FireDemonBoss {
                     this.state = 'idle';
                     this.stateTimer = 20;
                 }
-                
+
                 if (this.stateTimer === 1) {
                     this.cooldowns.charge = 200; // 3.3s cooldown
                 }
@@ -1098,7 +1098,7 @@ export class FireDemonBoss {
     triggerMeteorRain(player, floorY) {
         audio.playBonfire();
         this.shouldTriggerShake = true;
-        
+
         // Spawnear 3 o 4 meteoros cayendo en diagonal desde el cielo sobre el jugador
         const count = 4;
         for (let i = 0; i < count; i++) {
@@ -1112,7 +1112,7 @@ export class FireDemonBoss {
 
     triggerLavaWaves(player, floorY) {
         audio.playBonfire();
-        
+
         const spawnX = this.x + this.width/2;
         const spawnY = this.y + 40;
         const speed = 5.2;
@@ -1191,7 +1191,7 @@ export class FireDemonBoss {
         // 1. ALAS GIGANTES DE FUEGO (Capa trasera)
         ctx.save();
         ctx.translate(x + w / 2, y + 60 + floatBob);
-        
+
         ctx.fillStyle = '#5c1000'; // Rojo volcánico oscuro
         ctx.strokeStyle = '#ff3300'; // Bordes de lava
         ctx.lineWidth = 3;
@@ -1202,14 +1202,14 @@ export class FireDemonBoss {
         ctx.rotate(this.wingAngle);
         ctx.beginPath();
         ctx.moveTo(10, 0);
-        ctx.lineTo(95, -45); 
+        ctx.lineTo(95, -45);
         ctx.lineTo(80, 20);
         ctx.lineTo(45, 25);
         ctx.lineTo(10, 5);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-        
+
         // Membrana encendida
         ctx.fillStyle = '#ff6600';
         ctx.beginPath();
@@ -1225,7 +1225,7 @@ export class FireDemonBoss {
         ctx.rotate(this.wingAngle);
         ctx.beginPath();
         ctx.moveTo(10, 0);
-        ctx.lineTo(95, -45); 
+        ctx.lineTo(95, -45);
         ctx.lineTo(80, 20);
         ctx.lineTo(45, 25);
         ctx.lineTo(10, 5);
@@ -1264,7 +1264,7 @@ export class FireDemonBoss {
         // Costillas/Estructura de magma
         ctx.fillStyle = '#2a110a';
         ctx.fillRect(-22, -12, 44, 35);
-        
+
         ctx.fillStyle = '#ff4400'; // Bandas calientes
         ctx.fillRect(-30, -4, 60, 4);
         ctx.fillRect(-32, 4, 64, 4);
@@ -1308,7 +1308,7 @@ export class FireDemonBoss {
         // Cetro de Lava
         ctx.fillStyle = '#ffd700'; // Mango
         ctx.fillRect(-2, 10, 4, 80);
-        
+
         ctx.fillStyle = '#ff2200'; // Cabeza del cetro (Sol de lava)
         ctx.beginPath();
         ctx.arc(0, 90, 15, 0, Math.PI*2);
@@ -1389,7 +1389,7 @@ export class GiantGoblinBoss {
         this.maxHp = 550; // HP fuerte de Mundo 3
         this.hp = 550;
         this.phase = 1;
-        
+
         // Estados: 'idle', 'chase', 'slashPre', 'slashStrike', 'block', 'leapPre', 'leapAir', 'leapSlam', 'dead'
         this.state = 'idle';
         this.stateTimer = 80;
@@ -1409,7 +1409,7 @@ export class GiantGoblinBoss {
         this.isBlocking = false;
         this.hurtTimer = 0;
         this.animTime = 0;
-        
+
         this.spawnedProjectiles = [];
         this.spawnedShockwaves = [];
         this.shouldTriggerShake = false;
@@ -1463,7 +1463,7 @@ export class GiantGoblinBoss {
             const dist = Math.abs(dx);
             const isPlayerAttacking = player.isAttacking;
             const isFrontal = (dx > 0 && this.facing === 1) || (dx < 0 && this.facing === -1);
-            
+
             if (dist < 180 && isPlayerAttacking && isFrontal) {
                 this.state = 'block';
                 this.isBlocking = true;
@@ -1503,7 +1503,7 @@ export class GiantGoblinBoss {
                 this.stateTimer = 24;
                 this.cooldowns.slash = this.phase === 2 ? 50 : 90;
                 audio.playDeath(); // Sonido retro profundo
-                
+
                 // Embestida frontal
                 this.vx = this.facing * 4.0;
             } else if (this.state === 'slashStrike' || this.state === 'block') {
@@ -1556,14 +1556,14 @@ export class GiantGoblinBoss {
         if (this.state === 'leapSlam' && this.vy === 0 && this.isGrounded && this.stateTimer > 0) {
             this.shouldTriggerShake = true;
             audio.playCrateBreak();
-            
+
             // Emitir dos ondas sísmicas a los lados (ondas goblínicas verdes)
             this.spawnedShockwaves.push(new Shockwave(this.x, floorY - 36, -5.5));
             this.spawnedShockwaves.push(new Shockwave(this.x + this.width, floorY - 36, 5.5));
-            
+
             particles.spawnSparks(this.x + this.width/2, floorY, 20, 0);
             particles.addFloatingText(this.x + this.width/2, this.y - 20, "SEISMIC CRUSH!", "#2ecc71", 11, true);
-            
+
             this.state = 'idle';
             this.stateTimer = 40;
             this.cooldowns.leap = this.phase === 2 ? 120 : 180;
@@ -1614,16 +1614,16 @@ export class GiantGoblinBoss {
             ctx.translate(this.x + this.width/2, this.y + this.height - 10);
             ctx.fillStyle = '#1c2b1e'; // Sombra
             ctx.fillRect(-60, 0, 120, 6);
-            
+
             ctx.fillStyle = '#27ae60'; // Tumbado cuerpo verde
             ctx.fillRect(-50, -16, 100, 16);
-            
+
             ctx.fillStyle = '#784212'; // Ropa/Chaleco
             ctx.fillRect(-30, -16, 60, 16);
-            
+
             ctx.fillStyle = '#7f8c8d';
             ctx.fillRect(-55, -28, 20, 4); // Espada rota
-            
+
             ctx.restore();
             return;
         }
@@ -1716,7 +1716,7 @@ export class GiantGoblinBoss {
             ctx.strokeStyle = '#f1c40f';
             ctx.lineWidth = 3;
             ctx.strokeRect(xOffset + 75, yOffset + 25, 25, 65);
-            
+
             ctx.fillStyle = '#9b1e1e';
             ctx.fillRect(xOffset + 85, yOffset + 35, 5, 45);
             ctx.fillRect(xOffset + 80, yOffset + 50, 15, 5);
@@ -1744,7 +1744,7 @@ export class GiantGoblinBoss {
         ctx.fillStyle = '#7f8c8d';
         ctx.fillRect(-4, 0, 8, 18);
         ctx.fillRect(-16, 18, 32, 6);
-        
+
         ctx.fillStyle = '#bdc3c7';
         ctx.fillRect(-7, -85, 14, 85);
         ctx.fillStyle = '#ffffff';
@@ -2181,6 +2181,696 @@ export class FallenAngelBoss {
         ctx.beginPath();
         ctx.arc(0, -16, 48 + Math.sin(this.animTime * 0.1) * 3, 0, Math.PI * 2);
         ctx.stroke();
+
+        ctx.restore();
+    }
+}
+
+export class DoppelgangerBoss {
+    constructor(x, y, options = {}) {
+        this.x = x;
+        this.y = y;
+        this.width = 40;  // Mismo tamaño que el caballero
+        this.height = 58; // Mismo alto que el caballero
+        this.isPhaseTwin = !!options.isPhaseTwin;
+        this.maxHp = options.maxHp || (this.isPhaseTwin ? 450 : 900);
+        this.hp = this.maxHp;
+        this.vx = 0;
+        this.vy = 0;
+        this.gravity = 0.48; // Misma gravedad del héroe
+        this.facing = -1;
+        this.state = 'idle';
+        this.attackTimer = 0;
+        this.cooldown = 70;
+        this.shieldTimer = 0;
+        this.jumpTimer = 0;
+        this.isGrounded = false;
+
+        // Gancho espectral (mímica del grappling hook)
+        this.hookX = 0;
+        this.hookY = 0;
+        this.isHooked = false;
+        this.hookActive = false;
+        this.hookCooldown = 150;
+
+        this.hurtTimer = 0;
+        this.animTime = 0;
+        this.phase = 1;
+        this.clones = [];
+        this.voidRocks = [];
+        this.phaseTwin = null;
+        this.phaseTwinSpawned = this.isPhaseTwin;
+        this.damageScale = this.isPhaseTwin ? 0.72 : 1;
+        this.speedScale = this.isPhaseTwin ? 0.86 : 1;
+        this.shouldTriggerShake = false;
+        this.voidPortalAnim = 0;
+    }
+
+    update(player, arenaLeft, arenaRight, floorY, game = null) {
+        this.animTime++;
+        this.voidPortalAnim += 0.05;
+
+        // Limpiar proyectiles/clones inactivos
+        this.clones = this.clones.filter(c => c.active);
+        this.voidRocks = this.voidRocks.filter(r => r.active);
+
+        // Actualizar clones
+        this.clones.forEach(c => c.update(player, floorY));
+        this.voidRocks.forEach(r => r.update(floorY));
+        if (this.phaseTwin) {
+            this.phaseTwin.update(player, arenaLeft, arenaRight, floorY, game);
+            if (this.phaseTwin.state === 'dead' && this.phaseTwin.vy === 0) {
+                this.phaseTwin = null;
+            }
+        }
+
+        if (this.state === 'dead') {
+            this.vy += this.gravity;
+            this.y += this.vy;
+            if (this.y + this.height >= floorY) {
+                this.y = floorY - this.height;
+                this.vy = 0;
+                this.vx = 0;
+            }
+            return;
+        }
+
+        if (this.hurtTimer > 0) this.hurtTimer--;
+        if (this.cooldown > 0) this.cooldown--;
+        if (this.attackTimer > 0) this.attackTimer--;
+        if (this.shieldTimer > 0) this.shieldTimer--;
+        if (this.hookCooldown > 0) this.hookCooldown--;
+
+        if (this.hp < this.maxHp * 0.5 && this.phase === 1) {
+            this.phase = 2;
+            particles.addFloatingText(this.x + this.width/2, this.y - 30, "FURIA DEL VACÍO", "#b642f5", 14, true);
+            audio.playThunder();
+            if (!this.isPhaseTwin && !this.phaseTwinSpawned) {
+                this.phaseTwinSpawned = true;
+                const spawnX = Math.max(arenaLeft + 160, Math.min(arenaRight - 220, this.x - this.facing * 180));
+                this.phaseTwin = new DoppelgangerBoss(spawnX, this.y, {
+                    isPhaseTwin: true,
+                    maxHp: Math.floor(this.maxHp * 0.5)
+                });
+                this.phaseTwin.phase = 2;
+                this.phaseTwin.facing = -this.facing;
+                this.phaseTwin.cooldown = 45;
+                particles.spawnCollectGlow(spawnX + this.width / 2, this.y + this.height / 2, '#ff00ff', 26);
+                particles.addFloatingText(spawnX + this.width / 2, this.y - 34, "REFLEJO MENOR", "#ff9cff", 12, true);
+            }
+        }
+
+        const playerCenter = player.x + player.width / 2;
+        const selfCenter = this.x + this.width / 2;
+        const dx = playerCenter - selfCenter;
+        const dy = player.y - this.y;
+        const dist = Math.abs(dx);
+        this.facing = dx >= 0 ? 1 : -1;
+
+        // FÍSICA Y MOVIMIENTO
+        if (!this.isHooked) {
+            this.vy += this.gravity;
+        } else {
+            // Moverse hacia el punto de gancho
+            const hdx = this.hookX - (this.x + this.width/2);
+            const hdy = this.hookY - (this.y + this.height/2);
+            const hdist = Math.sqrt(hdx*hdx + hdy*hdy);
+
+            if (hdist > 15) {
+                this.vx = (hdx / hdist) * 9.0;
+                this.vy = (hdy / hdist) * 9.0;
+            } else {
+                // Soltarse y catapultarse
+                this.isHooked = false;
+                this.hookActive = false;
+                this.vy = -7.5;
+                this.vx = this.facing * 5.0;
+                this.hookCooldown = 180;
+                audio.playJump();
+            }
+        }
+
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Colisión con suelo y límites de la arena
+        if (this.y + this.height >= floorY) {
+            this.y = floorY - this.height;
+            this.vy = 0;
+            this.isGrounded = true;
+        } else {
+            this.isGrounded = false;
+            // Chequear plataformas de la arena
+            if (game && game.platforms) {
+                game.platforms.forEach(plat => {
+                    if (this.vy > 0 &&
+                        this.x + this.width > plat.x &&
+                        this.x < plat.x + plat.width &&
+                        this.y + this.height >= plat.y &&
+                        this.y + this.height - this.vy <= plat.y) {
+                        this.y = plat.y - this.height;
+                        this.vy = 0;
+                        this.isGrounded = true;
+                    }
+                });
+            }
+        }
+
+        if (this.x < arenaLeft + 120) {
+            this.x = arenaLeft + 120;
+            this.vx = 0;
+        }
+        if (this.x + this.width > arenaRight - 120) {
+            this.x = arenaRight - 120 - this.width;
+            this.vx = 0;
+        }
+
+        // LÓGICA DE IA (MÍMICA Y TÁCTICA)
+        if (!this.isHooked && this.state !== 'dead') {
+            // Mímica del salto del jugador
+            if (player.vy < -3 && this.isGrounded && Math.random() < 0.25) {
+                this.vy = -10.5;
+                audio.playJump();
+            }
+
+            // Mímica de defensa ante golpes cercanos
+            // Solo bloquea el 20% del tiempo y necesita cooldown de recuperación
+            if (player.isAttacking && dist < 110 && Math.random() < 0.20 && this.shieldTimer <= 0 && this.cooldown <= 0) {
+                if ((this.facing === 1 && player.x > this.x) || (this.facing === -1 && player.x < this.x)) {
+                    this.state = 'shield';
+                    this.shieldTimer = 22;  // Duración del escudo reducida
+                    this.cooldown = 80;     // No puede volver a bloquear en mucho tiempo
+                    this.vx = 0;
+                    audio.playBlock();
+                }
+            }
+
+            if (this.shieldTimer > 0) {
+                this.state = 'shield';
+                this.vx = -this.facing * 0.5; // Retroceso sutil
+            } else if (this.attackTimer > 0) {
+                this.state = 'slash';
+                this.vx = this.facing * 2.5;
+
+                // Ventana de daño: frame 14 a 8 del ataque (peak del swing)
+                if (!this._attackHit && this.attackTimer <= 14 && this.attackTimer >= 7) {
+                    if (!player.isRolling && dist < 85 && Math.abs(player.y - this.y) < 35) {
+                        const selfCenterX = this.x + this.width / 2;
+                        const knockDir = player.x + player.width / 2 > selfCenterX ? 4.5 : -4.5;
+                        const isDefending = player.isBlocking &&
+                            ((player.facing === 1 && selfCenterX > player.x + player.width / 2) ||
+                             (player.facing === -1 && selfCenterX < player.x + player.width / 2));
+                        if (isDefending) {
+                            audio.playBlock();
+                            player.stamina = Math.max(0, player.stamina - 15);
+                            particles.spawnSparks(player.x + player.width / 2, player.y + player.height / 2, 8, player.facing);
+                            particles.addFloatingText(player.x + player.width / 2, player.y - 18, 'BLOCKED', '#0088ff', 9);
+                        } else {
+                            // Pasar knockbackX y sourceX correctamente para evitar NaN
+                            player.takeDamage(Math.round((this.phase === 2 ? 14 : 12) * this.damageScale), knockDir, selfCenterX);
+                        }
+                        this._attackHit = true; // Solo un golpe por swing
+                    }
+                }
+            } else {
+                this.state = 'idle';
+
+                if (dist > 90) {
+                    this.vx = this.facing * (this.phase === 2 ? 3.0 : 2.2) * this.speedScale;
+                    this.state = 'run';
+                } else {
+                    if (this.cooldown <= 0) {
+                        this.state = 'slash';
+                        this.attackTimer = 20;
+                        this.cooldown = this.phase === 2 ? 50 : 70;
+                        audio.playSwordSwing();
+                        // Marcar que este swing puede aplicar daño una vez
+                        this._attackHit = false;
+                    } else {
+                        this.vx = -this.facing * 1.5;
+                    }
+                }
+
+                // USO DEL GANCHO ESPECTRAL
+                if (this.hookCooldown <= 0 && dy < -180 && dist > 180 && game && game.platforms.length > 0) {
+                    const upperPlats = game.platforms.filter(p => p.y < this.y - 120);
+                    if (upperPlats.length > 0) {
+                        const plat = upperPlats[Math.floor(Math.random() * upperPlats.length)];
+                        this.hookX = plat.x + plat.width / 2;
+                        this.hookY = plat.y;
+                        this.isHooked = true;
+                        this.hookActive = true;
+                        audio.playPortal();
+                        particles.spawnCollectGlow(this.hookX, this.hookY, '#b642f5', 8);
+                    }
+                }
+            }
+
+            // FASE 2: Habilidades espectrales
+            if (this.phase === 2 && this.state !== 'slash' && this.shieldTimer <= 0) {
+                if (this.animTime % (this.isPhaseTwin ? 360 : 260) === 0) {
+                    this.clones.push(new DoppelgangerClone(this.x, this.y, this.facing));
+                    audio.playPortal();
+                }
+
+                if (!this.isPhaseTwin && this.animTime % 180 === 0) {
+                    this.voidRocks.push(new VoidRock(player.x + Math.random() * 80 - 40, this.y - 350));
+                    audio.playThunder();
+                }
+            }
+        }
+    }
+
+
+    takeDamage(amount, knockbackX = 0, player = null) {
+        if (this.state === 'dead') return;
+
+        if (this.state === 'shield') {
+            if (player && player.isChargedStriking) {
+                // ¡Ataque cargado rompe el escudo espectral!
+                this.state = 'idle';
+                this.shieldTimer = 0;
+                this.cooldown = 240; // Cooldown muy alto de recuperación tras romperse el escudo
+                audio.playCrateBreak(); // Crujido/ruptura retro de madera rota
+                particles.spawnSparks(this.x + this.width/2, this.y + this.height/2, 24, -this.facing);
+                particles.addFloatingText(this.x + this.width/2, this.y - 15, "¡ESCUDO ROTO!", "#ff3300", 11, true);
+                // Recibe el daño completo
+            } else {
+                audio.playBlock();
+                particles.spawnSparks(this.x + this.width/2, this.y + this.height/2, 8, -this.facing);
+                particles.addFloatingText(this.x + this.width/2, this.y - 15, "BLOQUEADO", "#9ee8ff", 9, true);
+                return;
+            }
+        }
+
+        this.hp = Math.max(0, this.hp - amount);
+        this.hurtTimer = 12;
+        this.x += knockbackX * 1.5;
+        audio.playHit();
+        particles.spawnEnemyHit(this.x + this.width / 2, this.y + this.height / 2, 12, true);
+        particles.addFloatingText(this.x + this.width / 2, this.y - 18, `-${amount}`, "#b642f5", 11, true);
+
+        if (this.hp <= 0) {
+            this.state = 'dead';
+            this.vx = 0;
+            this.vy = -6.5;
+            this.shouldTriggerShake = true;
+            audio.playDeath();
+            particles.spawnSparks(this.x + this.width / 2, this.y + this.height / 2, 35, 0);
+            particles.addFloatingText(this.x + this.width / 2, this.y - 30, "REFLEJO ROTO", "#ffffff", 14, true);
+        }
+    }
+
+    draw(ctx) {
+        this.clones.forEach(c => c.draw(ctx));
+        this.voidRocks.forEach(r => r.draw(ctx));
+        if (this.phaseTwin) this.phaseTwin.draw(ctx);
+
+        if (this.state === 'dead') {
+            // Dibujar caído con aura moribunda
+            ctx.save();
+            ctx.globalAlpha = Math.max(0.1, 0.6 - this.animTime * 0.008);
+            ctx.translate(this.x + this.width / 2, this.y + this.height - 12);
+            ctx.fillStyle = '#1a0030';
+            ctx.fillRect(-24, 0, 42, 6);
+            ctx.fillStyle = '#0d001a';
+            ctx.fillRect(-20, -8, 36, 8);
+            ctx.fillStyle = '#1a0d2e';
+            ctx.fillRect(8, -12, 14, 12);
+            ctx.fillStyle = '#b642f5';
+            ctx.fillRect(14, -8, 6, 4);
+            ctx.restore();
+            return;
+        }
+
+        ctx.save();
+
+        // Parpadeo al recibir daño
+        if (this.hurtTimer > 0 && Math.floor(this.hurtTimer / 3) % 2 === 0) {
+            ctx.globalAlpha = 0.35;
+        }
+
+        // ── AURA OSCURA PULSANTE (Mejorada para una sensación gótica premium) ─────
+        const auraPulse = Math.sin(this.animTime * 0.08) * 0.5 + 0.5; // 0..1
+        const auraColor  = this.isPhaseTwin ? '#ff9cff' : (this.phase === 2 ? '#ff00ff' : '#b642f5');
+        const auraBlur   = this.isPhaseTwin ? (18 + auraPulse * 10) : (this.phase === 2 ? (25 + auraPulse * 18) : (15 + auraPulse * 10));
+        ctx.shadowColor  = auraColor;
+        ctx.shadowBlur   = auraBlur;
+
+        // Estela o rastro espectral al correr o saltar (Efecto de brillo extra)
+        if (this.state === 'run' && Math.random() < 0.35) {
+            ctx.shadowBlur = auraBlur + 10;
+        }
+
+        // Sombra en el suelo
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.beginPath();
+        ctx.ellipse(this.x + this.width / 2, this.y + this.height - 2, this.width * 0.5, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Espejado según facing
+        ctx.save();
+        ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+        ctx.scale(this.facing, 1);
+
+        const x = -this.width / 2;
+        const y = -this.height / 2;
+
+        // Animación de carrera/idle (bobbing oscuro)
+        const isRunning = (this.state === 'run');
+        const bounce = isRunning && this.isGrounded ? (Math.floor(this.animTime / 6) % 2 === 0 ? 2 : 0) : 0;
+        const runOff  = isRunning ? (Math.floor(this.animTime / 6) % 2 === 0 ? 1 : -1) : 0;
+
+        // ── VOID MIST: partículas de sombra detrás ───────────────────────
+        if (this.phase === 2 || Math.random() < 0.25) {
+            ctx.save();
+            ctx.globalAlpha = 0.20 + auraPulse * 0.25;
+            ctx.fillStyle = this.phase === 2 ? '#ff00ff' : '#b642f5';
+            ctx.beginPath();
+            ctx.ellipse(x + this.width / 2, y + this.height * 0.7, 24 + auraPulse * 8, 12 + auraPulse * 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // ── 1. CAPA OSCURA (en vez de roja, negra con borde violeta) ─────
+        ctx.fillStyle = '#0d001a'; // Negro violáceo profundo
+        ctx.fillRect(x + 5 - runOff, y + 16 + bounce, 12, 30);
+
+        // ── 2. PIERNAS Y BOTAS VOID ──────────────────────────────────────
+        ctx.fillStyle = '#1a0d2e'; // Acero oscuro corrupto
+        ctx.fillRect(x + 10 + runOff, y + 42 - bounce, 8, 12);
+        ctx.fillRect(x + 22 - runOff, y + 42 + bounce, 8, 12);
+        ctx.fillStyle = '#0a0010'; // Botas negras
+        ctx.fillRect(x + 8  + runOff, y + 52 - bounce, 11, 6);
+        ctx.fillRect(x + 21 - runOff, y + 52 + bounce, 11, 6);
+
+        // ── 3. PECHO / ARMADURA VOID ─────────────────────────────────────
+        ctx.fillStyle = '#1c0f30'; // Armadura negra-violeta
+        ctx.fillRect(x + 8, y + 18 + bounce, 24, 25);
+        ctx.fillStyle = '#3d1f5a'; // Brillo violeta oscuro
+        ctx.fillRect(x + 12, y + 18 + bounce, 6, 25);
+
+        // Cinturón morado brillante (en vez de dorado)
+        ctx.fillStyle = this.phase === 2 ? '#ff00ff' : '#6a0dad';
+        ctx.fillRect(x + 8, y + 36 + bounce, 24, 4);
+
+        // ── 4. CASCO VOID ────────────────────────────────────────────────
+        ctx.fillStyle = '#1c0f30'; // Casco oscuro corrupto
+        ctx.fillRect(x + 10, y + bounce, 20, 18);
+        ctx.fillStyle = '#0d0018'; // Sombra
+        ctx.fillRect(x + 10, y + 14 + bounce, 20, 4);
+
+        // Visor (negro con ranura morada brillante en vez de roja)
+        ctx.fillStyle = '#050008';
+        ctx.fillRect(x + 18, y + 4 + bounce, 12, 6);
+        ctx.fillStyle = this.phase === 2 ? '#ff00ff' : '#b642f5'; // Ranura morada/magenta
+        ctx.fillRect(x + 22, y + 6 + bounce, 6, 2);
+
+        // ── Destello extra de ojos en fase 2 ─────────────────────────────
+        if (this.phase === 2) {
+            ctx.save();
+            ctx.globalAlpha = 0.5 + auraPulse * 0.5;
+            ctx.shadowColor = '#ff00ff';
+            ctx.shadowBlur = 8;
+            ctx.fillStyle = '#ff00ff';
+            ctx.fillRect(x + 22, y + 6 + bounce, 6, 2);
+            ctx.restore();
+        }
+
+        // Pluma oscura (negra en vez de roja)
+        ctx.fillStyle = '#1a0030';
+        ctx.beginPath();
+        ctx.moveTo(x + 12, y + bounce);
+        ctx.lineTo(x + 3, y - 6 + bounce);
+        ctx.lineTo(x + 10, y - 8 + bounce);
+        ctx.closePath();
+        ctx.fill();
+
+        // ── 5. ESCUDO CORRUPTO ───────────────────────────────────────────
+        if (this.state === 'shield') {
+            // Escudo al frente (modo defensa)
+            ctx.fillStyle = '#1a0d2e';
+            ctx.fillRect(x + 26, y + 10 + bounce, 10, 28);
+            ctx.fillStyle = this.phase === 2 ? '#ff00ff' : '#6a0dad'; // Borde morado
+            ctx.fillRect(x + 34, y + 10 + bounce, 4, 28);
+            ctx.fillRect(x + 26, y + 10 + bounce, 10, 3);
+            ctx.fillRect(x + 26, y + 35 + bounce, 10, 3);
+            // Símbolo void en el escudo
+            ctx.fillStyle = '#b642f5';
+            ctx.fillRect(x + 30, y + 16 + bounce, 2, 16);
+            ctx.fillRect(x + 28, y + 23 + bounce, 6, 2);
+        } else {
+            // Escudo en el brazo trasero
+            ctx.fillStyle = '#0d0018';
+            ctx.fillRect(x + 2, y + 16 + bounce, 6, 22);
+            ctx.fillStyle = '#3d1f5a';
+            ctx.fillRect(x + 4, y + 22 + bounce, 2, 10);
+        }
+
+        // ── 6. ESPADA OSCURA ADAPTATIVA ──────────────────────────────────
+        let weaponHilt = '#0d0018';
+        let weaponGuard = '#1a0d2e';
+        let weaponBlade = this.phase === 2 ? '#ff00ff' : '#7b2fe8';
+        let weaponGlow = this.phase === 2 ? '#ffffff' : '#d4a0ff';
+        let isLegendary = this.playerWeapon === 'legendary';
+        let isStorm = this.playerWeapon === 'storm';
+
+        if (isLegendary) {
+            weaponHilt = '#1e0008';
+            weaponGuard = '#3c0015';
+            weaponBlade = this.phase === 2 ? '#ff0077' : '#c0003c';
+            weaponGlow = this.phase === 2 ? '#ffb3d9' : '#ff3385';
+        } else if (isStorm) {
+            weaponHilt = '#000c1e';
+            weaponGuard = '#001a3c';
+            weaponBlade = this.phase === 2 ? '#00ffff' : '#0099cc';
+            weaponGlow = this.phase === 2 ? '#ffffff' : '#9ee8ff';
+        }
+
+        if (this.state === 'slash' && this.attackTimer > 0) {
+            ctx.save();
+            ctx.translate(x + 22, y + 20 + bounce);
+            const progress = (20 - this.attackTimer) / 20;
+            const angle = -Math.PI * 0.4 + (progress * Math.PI * 1.25);
+            ctx.rotate(angle);
+
+            // Mango oscuro
+            ctx.fillStyle = weaponHilt;
+            ctx.fillRect(-2, 0, 4, 8);
+            ctx.fillStyle = weaponGuard;
+            ctx.fillRect(isLegendary || isStorm ? -8 : -6, 8, isLegendary || isStorm ? 16 : 12, 3);
+
+            // Hoja void
+            ctx.fillStyle = weaponBlade;
+            ctx.fillRect(-3, isLegendary ? -34 : (isStorm ? -38 : -32), 6, isLegendary ? 34 : (isStorm ? 38 : 32));
+            ctx.fillStyle = weaponGlow;
+            ctx.fillRect(-1, isLegendary ? -32 : (isStorm ? -36 : -30), 2, isLegendary ? 30 : (isStorm ? 34 : 28)); // Filo brillante
+            ctx.restore();
+
+            // Arco de corte void
+            if (this.attackTimer >= 4 && this.attackTimer <= 14) {
+                ctx.save();
+                ctx.translate(x + 28, y + 16);
+                ctx.globalAlpha = 0.65;
+                let slashRadius = isStorm ? 56 : (isLegendary ? 50 : 44);
+                const slashGrad = ctx.createRadialGradient(0, 0, 6, 12, 0, slashRadius);
+                if (this.phase === 2) {
+                    if (isStorm) {
+                        slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
+                        slashGrad.addColorStop(0.4, 'rgba(0, 255, 255, 0.85)');
+                        slashGrad.addColorStop(1,   'rgba(0, 100, 150, 0)');
+                    } else if (isLegendary) {
+                        slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
+                        slashGrad.addColorStop(0.4, 'rgba(255, 0, 119, 0.85)');
+                        slashGrad.addColorStop(1,   'rgba(150, 0, 50, 0)');
+                    } else {
+                        slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+                        slashGrad.addColorStop(0.4, 'rgba(255, 0, 255, 0.85)');
+                        slashGrad.addColorStop(1,   'rgba(100, 0, 100, 0)');
+                    }
+                } else {
+                    if (isStorm) {
+                        slashGrad.addColorStop(0, 'rgba(158, 232, 255, 0.9)');
+                        slashGrad.addColorStop(0.5,'rgba(0, 153, 204, 0.7)');
+                        slashGrad.addColorStop(1,  'rgba(0, 50, 100, 0)');
+                    } else if (isLegendary) {
+                        slashGrad.addColorStop(0, 'rgba(255, 128, 128, 0.9)');
+                        slashGrad.addColorStop(0.5,'rgba(192, 0, 60, 0.7)');
+                        slashGrad.addColorStop(1,  'rgba(80, 0, 20, 0)');
+                    } else {
+                        slashGrad.addColorStop(0, 'rgba(200, 150, 255, 0.9)');
+                        slashGrad.addColorStop(0.5,'rgba(123, 47, 232, 0.7)');
+                        slashGrad.addColorStop(1,  'rgba(50, 0, 100, 0)');
+                    }
+                }
+                ctx.fillStyle = slashGrad;
+                ctx.beginPath();
+                ctx.arc(10, 0, slashRadius, -Math.PI * 0.4, Math.PI * 0.4);
+                ctx.lineTo(10, 0);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
+        } else if (this.state !== 'shield') {
+            // Espada en descanso
+            ctx.save();
+            ctx.translate(x + 26, y + 28 + bounce);
+            ctx.rotate(Math.PI * 0.15);
+            ctx.fillStyle = weaponHilt;
+            ctx.fillRect(-2, 0, 4, 6);
+            ctx.fillStyle = weaponGuard;
+            ctx.fillRect(isLegendary || isStorm ? -8 : -6, 0, isLegendary || isStorm ? 16 : 12, 2.5);
+
+            ctx.fillStyle = weaponBlade;
+            ctx.fillRect(-2, isLegendary ? -34 : (isStorm ? -38 : -26), 4, isLegendary ? 34 : (isStorm ? 38 : 26));
+            ctx.fillStyle = weaponGlow;
+            ctx.fillRect(0, isLegendary ? -32 : (isStorm ? -36 : -24), 2, isLegendary ? 30 : (isStorm ? 34 : 22));
+            ctx.restore();
+        }
+
+        ctx.restore(); // restaurar flip
+
+        // ── CADENA DEL GANCHO ESPECTRAL ──────────────────────────────────
+        if (this.hookActive) {
+            ctx.save();
+            ctx.strokeStyle = auraColor;
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([4, 4]);
+            ctx.shadowColor = auraColor;
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.moveTo(this.x + this.width / 2, this.y + this.height / 2);
+            ctx.lineTo(this.hookX, this.hookY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = '#00ffff';
+            ctx.beginPath();
+            ctx.arc(this.hookX, this.hookY, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // ── AURA DE PARTÍCULAS VOID alrededor ────────────────────────────
+        if (Math.random() < (this.phase === 2 ? 0.6 : 0.3)) {
+            particles.spawnCollectGlow(
+                this.x + Math.random() * this.width,
+                this.y + Math.random() * this.height,
+                this.phase === 2 ? '#ff00ff' : '#b642f5',
+                1
+            );
+        }
+
+        ctx.restore(); // restaurar save principal
+    }
+}
+
+class DoppelgangerClone {
+    constructor(x, y, facing) {
+        this.x = x + (facing * -60);
+        this.y = y - 30;
+        this.width = 36;
+        this.height = 54;
+        this.vx = facing * 4.5;
+        this.vy = -2.5;
+        this.facing = facing;
+        this.active = true;
+        this.life = 65;
+        this.animTime = 0;
+    }
+
+    update(player, floorY) {
+        this.animTime++;
+        this.life--;
+        if (this.life <= 0) this.active = false;
+
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += 0.2;
+
+        if (this.y + this.height >= floorY) {
+            this.y = floorY - this.height;
+            this.vy = 0;
+        }
+
+        const overlaps = player.x < this.x + this.width &&
+                         player.x + player.width > this.x &&
+                         player.y < this.y + this.height &&
+                         player.y + player.height > this.y;
+
+        if (overlaps && this.active && !player.isRolling) {
+            const cloneCenterX = this.x + this.width / 2;
+            const knockDir = player.x + player.width / 2 > cloneCenterX ? 4.0 : -4.0;
+            player.takeDamage(8, knockDir, cloneCenterX);
+            this.active = false;
+            particles.spawnSparks(this.x + this.width/2, this.y + this.height/2, 10, this.facing);
+        }
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        ctx.save();
+        ctx.globalAlpha = 0.45;
+        ctx.translate(this.x + this.width/2, this.y + this.height/2);
+        ctx.scale(this.facing, 1);
+
+        ctx.fillStyle = '#b642f5';
+        ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(10, 0);
+        ctx.lineTo(26, -18);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+}
+
+class VoidRock {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 24;
+        this.height = 24;
+        this.vy = 4.8;
+        this.damage = 14;
+        this.active = true;
+        this.life = 180;
+    }
+
+    update(floorY) {
+        this.y += this.vy;
+        this.life--;
+        if (this.life <= 0) this.active = false;
+
+        if (this.y >= floorY - this.height) {
+            this.active = false;
+            particles.spawnSparks(this.x + this.width/2, floorY, 8, 0);
+            audio.playCrateBreak();
+        }
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        ctx.save();
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#ff00ff';
+
+        ctx.fillStyle = 'rgba(20, 10, 30, 0.4)';
+        ctx.strokeStyle = '#b642f5';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(this.x + this.width/2, this.y - 40, 16, 4, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#1a0d2e';
+        ctx.strokeStyle = '#ff00ff';
+        ctx.lineWidth = 2;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.strokeRect(this.x, this.y, this.width, this.height);
 
         ctx.restore();
     }

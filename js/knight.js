@@ -48,9 +48,9 @@ export class Knight {
         this.isBlocking = false;
         this.isRolling = false;
         this.isAttacking = false;
-        
+
         this.facing = 1; // 1 = Derecha, -1 = Izquierda
-        
+
         // Timers y contadores de animación
         this.rollTimer = 0;
         this.rollDuration = 24; // frames (~0.4s)
@@ -96,9 +96,12 @@ export class Knight {
         this.potionLevel = 1;
         this.flasks = 0;
         this.hasForestKey = false;
+        this.hasVoidKey = false;
         this.hookRangeBonus = 0;
         this.berryHealBonus = 0;
         this.thunderRelicReady = false;
+        this.lunarGraceEnabled = false;
+        this.lunarGraceReady = true;
     }
 
     updateUpgradedStats() {
@@ -154,7 +157,7 @@ export class Knight {
                 this.vx = 0;
                 this.vy = 0;
                 this.isGrounded = true;
-                
+
                 audio.playJump(); // Sonido retro suave de llegada
                 particles.spawnDust(this.x + this.width / 2, this.y + this.height, 4);
             } else {
@@ -164,7 +167,7 @@ export class Knight {
                 this.vy = (dy / dist) * pullSpeed;
                 this.x += this.vx;
                 this.y += this.vy;
-                
+
                 // Si el jugador presiona saltar, atacar o rodar, cancela el gancho
                 if (input.jump || input.attack || input.roll) {
                     this.releaseHook(input.jump); // Aporta impulso extra si salta
@@ -179,7 +182,7 @@ export class Knight {
             this.vx = this.facing * this.rollSpeed;
             this.vy = 0; // No le afecta la gravedad en rodada en el aire para simplificar
             this.invincibleTimer = 2; // Invulnerable durante la rodada
-            
+
             // Generar partículas de polvo al rodar
             if (this.rollTimer % 4 === 0) {
                 particles.spawnDust(this.x + this.width/2, this.y + this.height, 2);
@@ -189,7 +192,7 @@ export class Knight {
                 this.isRolling = false;
                 this.height = this.baseHeight; // Recuperar altura normal
             }
-            
+
             // Aplicar velocidad del rodamiento
             this.x += this.vx;
             return; // Saltarse otros controles mientras rueda
@@ -282,7 +285,7 @@ export class Knight {
                     this.attackCooldown = 22; // Cooldown de ataque
                     this.hitTargets = []; // Limpiar lista de enemigos golpeados en esta ráfaga
                     audio.playSwordSwing();
-                    
+
                     // Impulso hacia adelante en ataque
                     this.vx += this.facing * 2.0;
                     this.attackConsumed = true; // Consumido hasta que suelte el botón
@@ -354,18 +357,18 @@ export class Knight {
         this.attackTimer = 18; // Duración ligeramente mayor
         this.attackCooldown = 30; // Mayor cooldown
         this.hitTargets = []; // Limpiar enemigos golpeados
-        
+
         audio.playDeath(); // Sonido profundo de impacto (reutilizado de forma retro)
-        
+
         // Fuerte impulso hacia adelante
         this.vx += this.facing * 5.5;
         this.vy = -1.5; // Pequeño impulso aéreo
-        
+
         particles.addFloatingText(this.x + this.width/2, this.y - 25, "CHARGED SLASH!", "#ffd700", 12, true);
-        
+
         // Sacudir la pantalla
         this.shouldTriggerShake = true;
-        
+
         // Explosión masiva de chispas doradas al frente
         particles.spawnSparks(this.x + (this.facing === 1 ? this.width : 0), this.y + this.height/2, 20, this.facing);
     }
@@ -377,12 +380,12 @@ export class Knight {
         if (!this.isAttacking || this.attackTimer < 4 || this.attackTimer > maxFrame) {
             return null;
         }
-        
+
         // La caja es significativamente más grande para el ataque cargado
         const hitWidth = this.isChargedStriking ? 75 : 40;
         const hitHeight = this.isChargedStriking ? this.height + 15 : this.height - 10;
         const hitY = this.isChargedStriking ? this.y - 10 : this.y + 5;
-        
+
         return {
             x: this.facing === 1 ? this.x + this.width - 5 : this.x - hitWidth + 5,
             y: hitY,
@@ -401,7 +404,7 @@ export class Knight {
         if (this.isBlocking && isDamageFromFront && this.stamina >= blockStaminaCost) {
             this.stamina = Math.max(0, this.stamina - blockStaminaCost);
             this.statsDamageBlocked += amount;
-            
+
             // Bloqueo exitoso: Reducir daño a 0, hacer chispas de metal y pequeño empujón
             audio.playBlock();
             particles.spawnSparks(
@@ -411,7 +414,7 @@ export class Knight {
                 -this.facing
             );
             particles.addFloatingText(this.x + this.width/2, this.y - 15, "BLOCKED", "#0088ff");
-            
+
             this.vx = -this.facing * 2.0; // Knockback reducido
             this.invincibleTimer = 15; // Pequeño margen de invulnerabilidad
             return false; // No recibió daño real
@@ -419,10 +422,25 @@ export class Knight {
 
         // 2. Recibir Daño Real
         const finalAmount = Math.max(1, Math.round(amount));
+        if (this.lunarGraceEnabled && this.lunarGraceReady && this.hp - finalAmount <= 0) {
+            this.hp = 1;
+            this.lunarGraceReady = false;
+            this.hurtTimer = 18;
+            this.invincibleTimer = 95;
+            audio.playBonfire();
+            particles.spawnCollectGlow(this.x + this.width/2, this.y + this.height/2, '#b8d7ff', 18);
+            particles.addFloatingText(this.x + this.width/2, this.y - 18, 'VELO LUNAR', '#b8d7ff', 11, true);
+            this.vx = knockbackX * 0.45;
+            this.vy = -4.0;
+            this.isGrounded = false;
+            this.shouldTriggerShake = true;
+            return true;
+        }
+
         this.hp = Math.max(0, this.hp - finalAmount);
         this.hurtTimer = 18;
         this.invincibleTimer = 35; // Frames de inmunidad tras golpe
-        
+
         audio.playHit();
         particles.spawnEnemyHit(this.x + this.width/2, this.y + this.height/2, 10, false);
         particles.addFloatingText(this.x + this.width/2, this.y - 15, `-${finalAmount}`, "#ff3333", 12, true);
@@ -453,7 +471,7 @@ export class Knight {
     // Beber poción de vida del bulto
     usePotion() {
         if (this.hp <= 0 || this.potions <= 0) return false;
-        
+
         this.potions--;
         // Curar porcentaje de la vida máxima basado en el nivel de poción
         const percentage = this.potionLevel === 1 ? 0.25 : 0.35;
@@ -517,6 +535,10 @@ export class Knight {
         let targetY = 0;
 
         platforms.forEach(plat => {
+            if (plat.hidden || plat.active === false) return;
+            if (plat.visibleTimer !== undefined && plat.visibleTimer === 0) return;
+            if (plat.requiresHookBonus && !(this.hookRangeBonus > 0)) return;
+
             // Buscamos colgarse de la parte superior de la plataforma
             const platCenterX = plat.x + plat.width / 2;
             const platTopY = plat.y;
@@ -541,7 +563,7 @@ export class Knight {
             this.hookY = targetY;
             this.hookTargetPlat = closestPlat; // Guardar referencia de la plataforma objetivo
             audio.playJump(); // Reproducir sonido retro
-            
+
             // Estimular las lianas si es una plataforma de madera del bosque
             if (closestPlat.style === 'wood' && closestPlat._vines) {
                 closestPlat._vines.forEach(v => {
@@ -638,13 +660,13 @@ export class Knight {
             const barH = 5;
             const bx = this.x + this.width/2 - barW/2;
             const by = this.y - 18; // Colocar arriba del hitbox
-            
+
             ctx.fillStyle = '#111';
             ctx.fillRect(bx, by, barW, barH);
-            
+
             const progress = this.chargeTimer / this.chargeDuration;
             const fillW = barW * progress;
-            
+
             if (this.chargeTimer >= this.chargeDuration) {
                 // Parpadeo en blanco/dorado al estar lleno
                 ctx.fillStyle = (Math.floor(this.chargeTimer / 4) % 2 === 0) ? '#ffffff' : '#ffd700';
@@ -652,7 +674,7 @@ export class Knight {
                 ctx.fillStyle = '#00ffcc'; // Celeste de carga
             }
             ctx.fillRect(bx, by, fillW, barH);
-            
+
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 1;
             ctx.strokeRect(bx, by, barW, barH);
@@ -667,7 +689,7 @@ export class Knight {
         // 1. Capa trasera: Capa del caballero (roja o azul oscuro)
         ctx.fillStyle = '#6b1111'; // Rojo oscuro
         ctx.fillRect(x + 5 - runningOffset, y + 16 + bounce, 12, 30);
-        
+
         // 2. Piernas y Botas (Acero)
         ctx.fillStyle = '#3e3e4a'; // Metal oscuro
         // Pierna Izquierda
@@ -683,7 +705,7 @@ export class Knight {
         ctx.fillRect(x + 8, y + 18 + bounce, 24, 25);
         ctx.fillStyle = '#a3a3c2'; // Brillo
         ctx.fillRect(x + 12, y + 18 + bounce, 6, 25);
-        
+
         // Cinturón dorado
         ctx.fillStyle = '#d1a115';
         ctx.fillRect(x + 8, y + 36 + bounce, 24, 4);
@@ -693,7 +715,7 @@ export class Knight {
         ctx.fillRect(x + 10, y + bounce, 20, 18);
         ctx.fillStyle = '#4e4e5a'; // Sombra
         ctx.fillRect(x + 10, y + 14 + bounce, 20, 4);
-        
+
         // Visor Casco (Negro con ranura roja brillante gótica)
         ctx.fillStyle = '#111';
         ctx.fillRect(x + 18, y + 4 + bounce, 12, 6);
@@ -717,7 +739,7 @@ export class Knight {
             ctx.fillRect(x + 34, y + 10 + bounce, 4, 28);
             ctx.fillRect(x + 26, y + 10 + bounce, 10, 3);
             ctx.fillRect(x + 26, y + 35 + bounce, 10, 3);
-            
+
             // Cruz o emblema en el escudo
             ctx.fillStyle = '#9b1e1e';
             ctx.fillRect(x + 30, y + 16 + bounce, 2, 16);
@@ -738,7 +760,7 @@ export class Knight {
             ctx.save();
             ctx.translate(x + 26, y + 28 + bounce);
             ctx.rotate(Math.PI * 0.15); // Inclinación en descanso
-            
+
             if (this.weapon === 'storm') {
                 ctx.fillStyle = '#f4f7ff';
                 ctx.fillRect(-2, 0, 4, 6);
@@ -754,7 +776,7 @@ export class Knight {
                 ctx.fillStyle = '#d1a115';
                 ctx.fillRect(-2, 0, 4, 6);
                 ctx.fillRect(-8, 0, 16, 2.5); // Guarda más ancha
-                
+
                 // Hoja de fuego templado de magma
                 ctx.fillStyle = '#ff2200'; // Rojo fuego vivo
                 ctx.fillRect(-3, -34, 6, 34); // Hoja más larga y ancha
@@ -765,7 +787,7 @@ export class Knight {
                 ctx.fillStyle = '#d1a115';
                 ctx.fillRect(-2, 0, 4, 6);
                 ctx.fillRect(-6, 0, 12, 2);
-                
+
                 // Hoja plateada
                 ctx.fillStyle = '#e3e3e3';
                 ctx.fillRect(-2, -26, 4, 26);
@@ -780,7 +802,7 @@ export class Knight {
     drawCrouching(ctx, x, y) {
         // En agachado reducimos la altura corporal. y es el límite del hitbox reducido.
         const cy = y + 10;
-        
+
         // Capa
         ctx.fillStyle = '#6b1111';
         ctx.fillRect(x + 4, cy + 8, 12, 18);
@@ -851,7 +873,7 @@ export class Knight {
     drawSwordSlash(ctx, x, y, bounce) {
         ctx.save();
         ctx.translate(x + 22, y + 20 + bounce);
-        
+
         // Rotación de la espada según frame de ataque
         // attackTimer va de 15 a 0. Golpe definitivo ocurre en el medio (~8)
         const progress = (15 - this.attackTimer) / 15;
@@ -891,7 +913,7 @@ export class Knight {
             ctx.save();
             ctx.translate(x + 28, y + 16);
             ctx.globalAlpha = 0.7;
-            
+
             // Si es un ataque cargado, el espadazo es dorado y mucho más grande!
             let slashRadius = this.isChargedStriking ? 58 : 38;
             if (this.weapon === 'storm') {
@@ -901,7 +923,7 @@ export class Knight {
             }
             const startAngle = this.isChargedStriking ? -Math.PI * 0.45 : -Math.PI * 0.4;
             const endAngle = this.isChargedStriking ? Math.PI * 0.45 : Math.PI * 0.4;
-            
+
             const slashGrad = ctx.createRadialGradient(0, 0, 10, 15, 0, slashRadius);
             if (this.weapon === 'storm') {
                 slashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
@@ -954,7 +976,7 @@ export class Knight {
 
         ctx.fillStyle = '#4e4e5a'; // Armadura opaca
         ctx.fillRect(-20, -8, 36, 8);
-        
+
         ctx.fillStyle = '#3e3e4a'; // Casco tumbado
         ctx.fillRect(8, -12, 14, 12);
         ctx.fillStyle = '#111'; // Visor apagado

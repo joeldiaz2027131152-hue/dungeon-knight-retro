@@ -5,8 +5,8 @@
 import { audio } from './audio.js';
 import { particles } from './particles.js';
 import { Knight } from './knight.js';
-import { Crate, Spikes, CeilingBlade, BatEnemy, SkeletonMinion, Platform, FireTrap, SkeletonArcher, SecretDoor, TreasureChest, LootItem, LavaStalactite, GoblinSwordsman, GoblinArcher, ChasingBird } from './enemies.js';
-import { SkeletonBoss, FireDemonBoss, GiantGoblinBoss, SkySentinelMiniBoss, FallenAngelBoss } from './boss.js';
+import { Crate, Spikes, CeilingBlade, BatEnemy, SkeletonMinion, Platform, FireTrap, SkeletonArcher, SecretDoor, TreasureChest, LootItem, LavaStalactite, GoblinSwordsman, GoblinArcher, ChasingBird, SpectralPortal, VoidPlatform, SpectralWraith } from './enemies.js';
+import { SkeletonBoss, FireDemonBoss, GiantGoblinBoss, SkySentinelMiniBoss, FallenAngelBoss, DoppelgangerBoss } from './boss.js';
 
 class WindCurrent {
     constructor(x, y, width, height, strength = -1.15, duration = null) {
@@ -120,6 +120,84 @@ class CrumblingPlatform extends Platform {
     }
 }
 
+class StormElevatorPlatform extends Platform {
+    constructor(x, startY, targetY, width = 150, height = 22) {
+        super(x, startY, width, height, 'wood');
+        this.startY = startY;
+        this.targetY = targetY;
+        this.active = false;
+        this.moving = false;
+        this.reachedTop = false;
+        this.lastDy = 0;
+    }
+
+    activate() {
+        this.active = true;
+    }
+
+    startMoving() {
+        if (this.active && !this.reachedTop) {
+            this.moving = true;
+        }
+    }
+
+    update(player = null) {
+        this.lastDy = 0;
+        if (!this.active || this.reachedTop) return;
+        if (!this.moving) {
+            if (!player) return;
+            const playerBottom = player.y + player.height;
+            const horizontalOverlap = player.x + player.width > this.x + 8 && player.x < this.x + this.width - 8;
+            const standingOnTop = horizontalOverlap && playerBottom >= this.y - 10 && playerBottom <= this.y + this.height + 18 && player.vy >= -0.5;
+            if (!standingOnTop) return;
+            this.moving = true;
+        }
+        const dy = this.targetY - this.y;
+        if (Math.abs(dy) < 1.2) {
+            this.lastDy = this.targetY - this.y;
+            this.y = this.targetY;
+            this.reachedTop = true;
+            this.carryPlayer(player);
+            return;
+        }
+        this.lastDy = Math.sign(dy) * Math.min(2.4, Math.abs(dy));
+        this.y += this.lastDy;
+        this.carryPlayer(player);
+    }
+
+    carryPlayer(player) {
+        if (!player || this.lastDy === 0) return;
+        const playerBottom = player.y + player.height;
+        const horizontalOverlap = player.x + player.width > this.x + 8 && player.x < this.x + this.width - 8;
+        const riding = horizontalOverlap && playerBottom >= this.y - 20 && playerBottom <= this.y + this.height + 28;
+        if (!riding) return;
+        player.y = this.y - player.height;
+        player.vy = 0;
+        player.isGrounded = true;
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        ctx.save();
+        ctx.fillStyle = '#153f25';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.strokeStyle = '#5dff8a';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(this.x, this.y, this.width, this.height);
+        ctx.fillStyle = '#8dffab';
+        for (let bx = this.x + 8; bx < this.x + this.width - 8; bx += 28) {
+            ctx.fillRect(bx, this.y + 6, 18, 5);
+        }
+        if (this.active && !this.moving && !this.reachedTop) {
+            ctx.fillStyle = '#8dffab';
+            ctx.font = '10px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText('SUBE', this.x + this.width / 2, this.y - 8);
+        }
+        ctx.restore();
+    }
+}
+
 class WindCrystal {
     constructor(x, y, unlockDoorId = null, windConfig = null) {
         this.x = x;
@@ -220,6 +298,68 @@ class LightningTrap {
                 ctx.fillRect(this.x + (y % 2 ? 4 : 18), y, 10, 22);
             }
         }
+        ctx.restore();
+    }
+}
+
+class VoidCrystal {
+    constructor(x, y, radius = 430) {
+        this.x = x;
+        this.y = y;
+        this.width = 26;
+        this.height = 34;
+        this.radius = radius;
+        this.cooldown = 0;
+        this.pulse = Math.random() * Math.PI * 2;
+    }
+
+    update(game) {
+        this.pulse += 0.08;
+        if (this.cooldown > 0) this.cooldown--;
+        if (!game?.player || this.cooldown > 0) return;
+
+        const dx = game.player.x + game.player.width / 2 - (this.x + this.width / 2);
+        const dy = game.player.y + game.player.height / 2 - (this.y + this.height / 2);
+        if (Math.sqrt(dx * dx + dy * dy) > 72) return;
+
+        this.cooldown = 420;
+        let revealed = 0;
+        game.platforms.forEach(plat => {
+            if (!(plat instanceof VoidPlatform)) return;
+            const pdx = plat.x + plat.width / 2 - (this.x + this.width / 2);
+            const pdy = plat.y + plat.height / 2 - (this.y + this.height / 2);
+            if (Math.sqrt(pdx * pdx + pdy * pdy) <= this.radius) {
+                plat.reveal(540);
+                revealed++;
+            }
+        });
+
+        if (revealed > 0) {
+            audio.playPortal();
+            particles.spawnCollectGlow(this.x + this.width / 2, this.y + this.height / 2, '#b642f5', 18);
+            particles.addFloatingText(this.x + this.width / 2, this.y - 14, "PUENTE REVELADO", "#b642f5", 9, true);
+        }
+    }
+
+    draw(ctx) {
+        const active = this.cooldown <= 0;
+        const glow = active ? 0.55 + Math.sin(this.pulse) * 0.18 : 0.18;
+        ctx.save();
+        ctx.globalAlpha = active ? 1 : 0.55;
+        ctx.shadowBlur = active ? 12 : 4;
+        ctx.shadowColor = '#b642f5';
+        ctx.fillStyle = `rgba(182, 66, 245, ${glow})`;
+        ctx.beginPath();
+        ctx.moveTo(this.x + 13, this.y);
+        ctx.lineTo(this.x + 26, this.y + 12);
+        ctx.lineTo(this.x + 18, this.y + 34);
+        ctx.lineTo(this.x + 7, this.y + 34);
+        ctx.lineTo(this.x, this.y + 12);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#d9f6ff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
         ctx.restore();
     }
 }
@@ -430,32 +570,71 @@ class ChallengeDoor {
         this.started = false;
         this.completed = false;
         this.opened = false;
+        this.failed = false;
         this.timer = options.duration || 600;
         this.spawnedEnemies = [];
+        this.finalEnemy = null;
+        this.finalSpawned = false;
+        this.playerHpOnStart = null;
     }
 
     start(game) {
         if (this.completed || this.opened || this.started) return;
+        this.failed = false;
         this.started = true;
         this.timer = this.options.duration || 600;
+        this.playerHpOnStart = game.player ? game.player.hp : null;
         audio.playThunder();
         particles.addFloatingText(this.x + this.width / 2, this.y - 18, this.label, '#ffd700', 9, true);
 
-        if (this.type === 'defeat') {
+        if (this.type === 'defeat' || this.options.enemies) {
             const enemies = this.options.enemies || [
                 new SkeletonMinion(this.x - 90, this.y + this.height - 54),
                 new SkeletonMinion(this.x + 120, this.y + this.height - 54)
             ];
-            enemies.forEach(enemy => {
-                enemy.challengeId = this.id;
-                this.spawnedEnemies.push(enemy);
-                game.skeletons.push(enemy);
-            });
+            enemies.forEach(enemy => this.addChallengeEnemy(game, enemy));
         }
+    }
+
+    addChallengeEnemy(game, enemy) {
+        if (enemy.spawnX === undefined) {
+            enemy.spawnX = enemy.x;
+            enemy.spawnY = enemy.y;
+            enemy.spawnVx = enemy.vx || 0;
+        }
+        enemy.x = enemy.spawnX;
+        enemy.y = enemy.spawnY;
+        enemy.vx = enemy.spawnVx;
+        enemy.vy = 0;
+        enemy.hp = enemy.maxHp || enemy.hp;
+        enemy.active = true;
+        enemy.challengeId = this.id;
+        this.spawnedEnemies.push(enemy);
+        if (enemy instanceof SkeletonArcher || enemy instanceof GoblinArcher) {
+            game.archers.push(enemy);
+        } else {
+            game.skeletons.push(enemy);
+        }
+    }
+
+    spawnFinalEnemy(game) {
+        if (this.finalSpawned || !this.options.finalEnemy) return;
+        this.finalSpawned = true;
+        const enemy = this.options.finalEnemy;
+        this.finalEnemy = enemy;
+        this.addChallengeEnemy(game, enemy);
+        audio.playThunder();
+        particles.spawnCollectGlow(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#ff3333', 24);
+        particles.addFloatingText(enemy.x + enemy.width / 2, enemy.y - 22, 'CAMPEÓN DE CENIZA', '#ff3333', 11, true);
     }
 
     update(game) {
         if (!this.started || this.completed || this.opened) return;
+
+        if (this.options.failOnDamage && game.player && this.playerHpOnStart !== null && game.player.hp < this.playerHpOnStart) {
+            this.fail(game);
+            return;
+        }
 
         if (this.type === 'survive') {
             this.timer--;
@@ -465,15 +644,61 @@ class ChallengeDoor {
                 particles.addFloatingText(this.x + this.width / 2, this.y - 22, `${Math.ceil(this.timer / 60)}s`, '#9ee8ff', 8, false);
             }
         } else if (this.type === 'defeat') {
-            if (this.spawnedEnemies.every(enemy => !enemy.active || enemy.hp <= 0)) {
+            const firstWaveDefeated = this.spawnedEnemies
+                .filter(enemy => enemy !== this.finalEnemy)
+                .every(enemy => !enemy.active || enemy.hp <= 0);
+
+            if (firstWaveDefeated && this.options.finalEnemy && !this.finalSpawned) {
+                this.spawnFinalEnemy(game);
+                return;
+            }
+
+            const finalDefeated = !this.options.finalEnemy || (this.finalEnemy && (!this.finalEnemy.active || this.finalEnemy.hp <= 0));
+            if (firstWaveDefeated && finalDefeated) {
                 this.complete(game);
             }
         }
     }
 
+    cleanupSpawned(game) {
+        const spawned = new Set(this.spawnedEnemies);
+        game.skeletons = game.skeletons.filter(enemy => !spawned.has(enemy));
+        game.archers = game.archers.filter(enemy => !spawned.has(enemy));
+        this.spawnedEnemies.forEach(enemy => {
+            enemy.active = false;
+            enemy.challengeId = null;
+        });
+        this.spawnedEnemies = [];
+        this.finalEnemy = null;
+        this.finalSpawned = false;
+    }
+
+    fail(game) {
+        this.started = false;
+        this.failed = true;
+        this.timer = this.options.duration || 600;
+        this.cleanupSpawned(game);
+        audio.playHit();
+        particles.addFloatingText(this.x + this.width / 2, this.y - 18, 'RETO FALLIDO', '#ff3333', 10, true);
+        particles.addFloatingText(this.x + this.width / 2, this.y, 'Pulsa E para reiniciar', '#ffd700', 7, false);
+    }
+
+    reset(game) {
+        this.started = false;
+        this.failed = false;
+        this.completed = false;
+        this.timer = this.options.duration || 600;
+        this.playerHpOnStart = null;
+        this.cleanupSpawned(game);
+    }
+
     complete(game) {
         this.completed = true;
         this.started = false;
+        this.failed = false;
+        if (this.options.cleanupOnComplete) {
+            this.cleanupSpawned(game);
+        }
         game.completedChallenges.add(this.id);
         audio.playBonfire();
         particles.spawnCollectGlow(this.x + this.width / 2, this.y + this.height / 2, '#ffd700', 22);
@@ -494,7 +719,7 @@ class ChallengeDoor {
             game.awardRelic(relicId, this.x + this.width / 2, this.y - 10);
         } else {
             const type = this.reward === 'great_potion' ? 'great_heart' : (this.reward === 'violet_berry' ? 'violet_berry' : 'coin');
-            const count = this.reward === 'coins' ? 8 : 1;
+            const count = this.reward === 'coins' ? (this.options.coinReward || 8) : 1;
             for (let i = 0; i < count; i++) {
                 game.lootItems.push(new LootItem(this.x + this.width / 2 - 8, this.y + 10, type));
             }
@@ -506,14 +731,29 @@ class ChallengeDoor {
         if (this.opened) return;
         ctx.save();
         const activeGlow = this.started ? 0.35 + Math.sin(gameTime * 0.18) * 0.15 : 0;
-        ctx.fillStyle = this.completed ? '#2e2414' : '#161822';
+        const isAshHunt = this.id === 'w2-ash-hunt-door';
+        const idleColor = isAshHunt ? '#3a2605' : '#161822';
+        const borderColor = isAshHunt ? '#ffd700' : '#8aa0b8';
+        if (isAshHunt && !this.completed) {
+            const glow = 0.18 + Math.sin(gameTime * 0.12) * 0.08;
+            ctx.fillStyle = `rgba(255, 215, 0, ${glow})`;
+            ctx.fillRect(this.x - 8, this.y - 8, this.width + 16, this.height + 16);
+        }
+        ctx.fillStyle = this.failed ? '#2a1010' : (this.completed ? '#2e2414' : idleColor);
         ctx.fillRect(this.x, this.y, this.width, this.height);
-        ctx.strokeStyle = this.completed ? '#ffd700' : (this.started ? '#ff5555' : '#8aa0b8');
+        ctx.strokeStyle = this.failed ? '#ff3333' : (this.completed ? '#ffd700' : (this.started ? '#ff5555' : borderColor));
         ctx.lineWidth = 3;
         ctx.strokeRect(this.x, this.y, this.width, this.height);
-        ctx.fillStyle = this.completed ? '#ffd700' : '#8aa0b8';
+        ctx.fillStyle = this.completed ? '#ffd700' : borderColor;
         ctx.fillRect(this.x + 10, this.y + 14, 28, 4);
         ctx.fillRect(this.x + 16, this.y + 30, 16, 4);
+        if (isAshHunt && !this.completed) {
+            ctx.fillStyle = '#fff1a8';
+            ctx.fillRect(this.x + 21, this.y + 42, 6, 10);
+            ctx.fillStyle = '#ffcc33';
+            ctx.fillRect(this.x + 18, this.y + 8, 12, 4);
+            ctx.fillRect(this.x + 14, this.y + 22, 20, 4);
+        }
         if (this.started) {
             ctx.fillStyle = `rgba(255, 85, 85, ${activeGlow})`;
             ctx.fillRect(this.x - 4, this.y - 4, this.width + 8, this.height + 8);
@@ -524,10 +764,11 @@ class ChallengeDoor {
 
 class Game {
     constructor() {
-        window.gameInstance = this; // Exponer instancia globalmente para failsafe de clicks inline
+        try {
+            window.gameInstance = this; // Exponer instancia globalmente para failsafe de clicks inline
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
-        
+
         // Elementos de la UI
         this.domStartMenu = document.getElementById('start-menu');
         this.domGameOver = document.getElementById('game-over-screen');
@@ -549,6 +790,8 @@ class Game {
         this.btnMapWorld2 = document.getElementById('btn-map-world-2');
         this.btnMapWorld3 = document.getElementById('btn-map-world-3');
         this.btnMapWorld4 = document.getElementById('btn-map-world-4');
+        this.btnMapWorld5 = document.getElementById('btn-map-world-5');
+        this.btnMapWorld6 = document.getElementById('btn-map-world-6');
         this.mapLevelsList = document.getElementById('map-levels-list');
         this.mapWorldTitle = document.getElementById('map-world-title');
         this.slotMagicMap = document.getElementById('slot-magic-map');
@@ -587,21 +830,36 @@ class Game {
                 { levelNum: 23, name: "Nivel 4-5 (Biblioteca Invertida)", hasBonfire: false },
                 { levelNum: 24, name: "Nivel 4-6 (Última Hoguera)", hasBonfire: true, spawnX: 150 },
                 { levelNum: 25, name: "Nivel 4-7 (Trono de la Tormenta)", hasBonfire: true, spawnX: 220, requiresBoss: 'boss4Defeated' }
+            ],
+            5: [
+                { levelNum: 27, name: "Nivel 5-1 (Umbral del Vacío)", hasBonfire: true, spawnX: 120 },
+                { levelNum: 28, name: "Nivel 5-2 (Catacumbas de Cristal)", hasBonfire: false },
+                { levelNum: 29, name: "Nivel 5-3 (Abismo de los Espectros)", hasBonfire: false },
+                { levelNum: 30, name: "Nivel 5-4 (Torres Gemelas)", hasBonfire: false },
+                { levelNum: 31, name: "Nivel 5-5 (Laberinto de Portales)", hasBonfire: false },
+                { levelNum: 32, name: "Nivel 5-6 (Puente Espectral)", hasBonfire: false },
+                { levelNum: 33, name: "Nivel 5-7 (Antesala del Reflejo)", hasBonfire: true, spawnX: 680 },
+                { levelNum: 34, name: "Nivel 5-8 (El Espejo del Alma)", hasBonfire: true, spawnX: 150 }
+            ],
+            6: [
+                { levelNum: 35, name: "Nivel 6-1 (Nubes del Alba Negra)", hasBonfire: true, spawnX: 120 }
             ]
         };
 
         // Subinventario lateral
         this.equippedWeaponSlot = document.getElementById('equipped-weapon-slot');
         this.equippedShieldSlot = document.getElementById('equipped-shield-slot');
+        this.equippedRelicSlot = document.getElementById('equipped-relic-slot');
         this.domSubgridPopup = document.getElementById('inventory-subgrid-popup');
         this.domSubgridTitle = document.getElementById('subgrid-title');
         this.domSubgridGrid = document.getElementById('subgrid-grid');
         this.domSubgridDesc = document.getElementById('subgrid-desc');
-        this.subgridType = null; // 'weapon' o 'shield'
+        this.subgridType = null; // 'weapon', 'shield', 'relic' o 'consumable'
         this.consumablesSectionTitle = document.getElementById('consumables-section-title');
 
         this.shopCoins = document.getElementById('shop-coins');
         this.shopHp = document.getElementById('shop-hp');
+        this.shopStamina = document.getElementById('shop-stamina');
         this.shopRedCoins = document.getElementById('shop-red-coins');
         this.shopGreenCoins = document.getElementById('shop-green-coins');
         this.shopGreyCoins = document.getElementById('shop-grey-coins');
@@ -629,7 +887,7 @@ class Game {
         this.slotBerry = document.getElementById('slot-berry');
         this.slotVioletBerry = document.getElementById('slot-violet-berry');
         this.slotConsumablesBag = document.getElementById('slot-consumables-bag');
-        
+
         // Botones de la tienda
         this.btnShopRest = document.getElementById('btn-shop-rest');
         this.btnShopBuy = document.getElementById('btn-shop-buy');
@@ -648,14 +906,18 @@ class Game {
         this.openedTreasureDoors = new Set();
         this.greatPotionShopPurchased = false;
         this.acquiredRelics = new Set();
+        this.equippedRelics = new Set();
+        this.unlockedStormRelicPuzzle = false;
         this.completedChallenges = new Set();
         this.openedChallengeDoors = new Set();
         this.levelMedals = new Set();
+        this.activeLoreNote = null;
+        this.world6Cinematic = null;
 
         // Entidades y Nivel
         this.player = null;
         this.boss = null;
-        
+
         this.level = 1; // Mundo 1 = gótico, Mundo 2 = lava
         this.levelWidth = 2500;
         this.levelHeight = 750;
@@ -676,7 +938,7 @@ class Game {
         this.boss3Defeated = false; // Flag para evitar que el boss 3 reviva
         this.boss4Defeated = false; // Flag para evitar que el boss 4 reviva
         this.world4MiniBossDefeated = false;
-        
+
         // Entidades de Nivel 2
         this.platforms = [];
         this.fireTraps = [];
@@ -685,6 +947,7 @@ class Game {
         this.lavaStalactites = [];
         this.windCurrents = [];
         this.windCrystals = [];
+        this.voidCrystals = [];
         this.lightningTraps = [];
         this.loreTablets = [];
         this.treasureDoors = [];
@@ -692,6 +955,8 @@ class Game {
         this.relicPedestals = [];
         this.challengeDoors = [];
         this.miniBosses = [];
+        this.spectralPortals = [];
+        this.spectralWraiths = [];
         this.activeFireDots = [];
 
         // Checkpoint avanzado estilo Souls-like
@@ -730,7 +995,7 @@ class Game {
         this.shakeTimer = 0;
         this.shakeIntensity = 0;
         this.freezeTimer = 0; // Hit stop
-        
+
         // Sistema de Relámpagos (Mundo 3)
         this.lightningTimer = 0;
         this.lightningFlashDuration = 0;
@@ -738,6 +1003,7 @@ class Game {
 
         this.state = 'menu'; // 'menu', 'playing', 'gameover', 'victory'
         this.gameTime = 0;
+        this.gameOverTriggered = false;
 
         // Antorchas de fondo (detalles estéticos)
         this.torches = [
@@ -752,15 +1018,19 @@ class Game {
         this.setupEventListeners();
         this.checkMobile();
         this.refreshStartButton();
-        
+
         // Iniciar Bucle
         this.lastTime = 0;
         requestAnimationFrame((time) => this.loop(time));
+        } catch (err) {
+            console.error("CRITICAL STARTUP ERROR:", err);
+            alert("ERROR CRÍTICO AL INICIAR EL JUEGO:\n" + err.message + "\n\n" + err.stack);
+        }
     }
 
     // Comprobar si el jugador usa un móvil para mostrar el Gamepad táctil
     checkMobile() {
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
             || (window.innerWidth <= 1024);
         if (isMobile) {
             this.domGamepad.classList.remove('hidden');
@@ -794,6 +1064,13 @@ class Game {
                 return;
             }
 
+            if (e.code === 'KeyE' && this.state === 'world6_cinematic') {
+                e.preventDefault();
+                if (e.repeat) return;
+                this.finishWorld6Cinematic();
+                return;
+            }
+
             // Tecla de Poción rápida (Q)
             if (e.code === 'KeyQ' && this.state === 'playing' && !this.isPaused && !this.isShopOpen) {
                 e.preventDefault();
@@ -818,6 +1095,7 @@ class Game {
             // Tecla de interactuar (E)
             if (e.code === 'KeyE' && this.state === 'playing' && !this.isPaused) {
                 e.preventDefault();
+                if (e.repeat) return;
                 this.handleInteraction();
                 return;
             }
@@ -830,7 +1108,7 @@ class Game {
             }
 
             if (this.state !== 'playing' || this.isPaused || this.isShopOpen) return;
-            
+
             // Prevenir scroll
             if (['Space', 'ArrowUp', 'ArrowDown', 'KeyS', 'KeyW'].includes(e.code)) {
                 e.preventDefault();
@@ -911,7 +1189,7 @@ class Game {
         const bindButton = (elementId, inputProp) => {
             const btn = document.getElementById(elementId);
             if (!btn) return;
-            
+
             const startPress = (e) => {
                 e.preventDefault();
                 this.input[inputProp] = true;
@@ -1047,6 +1325,9 @@ class Game {
         if (this.btnMapWorld4) {
             this.btnMapWorld4.addEventListener('click', () => this.selectMapWorld(4));
         }
+        if (this.btnMapWorld5) {
+            this.btnMapWorld5.addEventListener('click', () => this.selectMapWorld(5));
+        }
 
         if (this.consumablesSectionTitle) {
             this.consumablesSectionTitle.addEventListener('click', (e) => {
@@ -1068,6 +1349,13 @@ class Game {
             this.equippedShieldSlot.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.toggleSubgrid('shield');
+            });
+        }
+
+        if (this.equippedRelicSlot) {
+            this.equippedRelicSlot.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleSubgrid('relic');
             });
         }
 
@@ -1103,12 +1391,15 @@ class Game {
         this.openedTreasureDoors = new Set(saveData?.openedTreasureDoors || []);
         this.greatPotionShopPurchased = !!saveData?.greatPotionShopPurchased;
         this.acquiredRelics = new Set(saveData?.acquiredRelics || []);
+        this.equippedRelics = new Set(saveData?.equippedRelics || []);
+        this.unlockedStormRelicPuzzle = !!saveData?.unlockedStormRelicPuzzle;
         this.completedChallenges = new Set(saveData?.completedChallenges || []);
         this.openedChallengeDoors = new Set(saveData?.openedChallengeDoors || []);
         this.levelMedals = new Set(saveData?.levelMedals || []);
         this.gameTime = 0;
         this.isPaused = false;
         this.isShopOpen = false;
+        this.gameOverTriggered = false;
         this.domPause.classList.add('hidden');
         this.domGameOver.classList.add('hidden');
         this.domVictory.classList.add('hidden');
@@ -1116,7 +1407,7 @@ class Game {
         this.domBonfirePrompt.classList.add('hidden');
         this.domInventoryPopup.classList.add('hidden');
         if (this.domWorldTransition) this.domWorldTransition.classList.add('hidden');
-        
+
         // Sincronizar texto de botón de silenciar en pausa
         this.btnMute.innerText = audio.isMuted ? "SONIDO: OFF" : "SONIDO: ON";
 
@@ -1135,7 +1426,7 @@ class Game {
         } else {
             this.movePlayerToLevelStart(80);
         }
-        
+
         this.state = 'playing';
         this.domStartMenu.classList.add('hidden');
         this.domHud.classList.remove('hidden');
@@ -1160,7 +1451,7 @@ class Game {
 
     normalizeLevelNumber(levelNum) {
         const parsed = Number(levelNum);
-        return Number.isInteger(parsed) && parsed >= 1 && parsed <= 25 ? parsed : 1;
+        return Number.isInteger(parsed) && parsed >= 1 && parsed <= 35 ? parsed : 1;
     }
 
     resetTransientStateForLevelStart() {
@@ -1191,8 +1482,9 @@ class Game {
     movePlayerToLevelStart(x = 80) {
         if (!this.player) return;
         this.resetTransientStateForLevelStart();
-        this.player.x = x;
-        this.player.y = this.floorY - this.player.height;
+        const spawn = this.getSafeLevelStartPoint(x);
+        this.player.x = spawn.x;
+        this.player.y = spawn.y;
         this.resolvePlayerSpawnOverlap();
         this.cameraX = Math.max(0, Math.min(this.levelWidth - 960, this.player.x - 960 * 0.35));
         this.cameraY = Math.max(540 - this.levelHeight, Math.min(0, this.player.y - 540 * 0.42));
@@ -1201,6 +1493,55 @@ class Game {
     enterLevelAtStart(levelNum, x = 80) {
         this.initLevel(levelNum);
         this.movePlayerToLevelStart(x);
+    }
+
+    isAbyssLevel(level = this.level) {
+        return level >= 27 && level <= 33;
+    }
+
+    getSafeLevelStartPoint(x = 80) {
+        if (this.level === 26) {
+            return { x, y: -1450 - this.player.height };
+        }
+
+        if (!this.isAbyssLevel()) {
+            return { x, y: this.floorY - this.player.height };
+        }
+
+        const platform = this.findSafePlatformNearX(x);
+        if (!platform) {
+            return { x, y: this.floorY - this.player.height };
+        }
+
+        return {
+            x: Math.max(platform.x + 8, Math.min(platform.x + platform.width - this.player.width - 8, x)),
+            y: platform.y - this.player.height
+        };
+    }
+
+    findSafePlatformNearX(x, includeVoid = false) {
+        const candidates = this.platforms
+            .filter(plat => !plat.hidden && plat.active !== false && (includeVoid || !(plat instanceof VoidPlatform)))
+            .sort((a, b) => {
+                const aContains = x >= a.x && x <= a.x + a.width ? 0 : 1;
+                const bContains = x >= b.x && x <= b.x + b.width ? 0 : 1;
+                if (aContains !== bContains) return aContains - bContains;
+                return Math.abs((a.x + a.width / 2) - x) - Math.abs((b.x + b.width / 2) - x);
+            });
+        return candidates[0] || null;
+    }
+
+    syncWorldFiveTwoVoidPlatforms() {
+        if (this.level !== 28) return;
+        const voidPlatforms = this.platforms.filter(plat => plat instanceof VoidPlatform);
+        if (voidPlatforms.length === 0) return;
+
+        const sharedTimer = Math.max(...voidPlatforms.map(plat => plat.visibleTimer || 0));
+        if (sharedTimer <= 0) return;
+
+        voidPlatforms.forEach(plat => {
+            plat.visibleTimer = sharedTimer;
+        });
     }
 
     resolvePlayerSpawnOverlap() {
@@ -1218,7 +1559,9 @@ class Game {
     }
 
     stabilizeKeyLoot(loot, source) {
-        if (!loot || loot.type !== 'forest_key') return loot;
+        if (!loot) return loot;
+        const shouldStabilize = ['forest_key', 'void_key'].includes(loot.type) || this.isAbyssLevel();
+        if (!shouldStabilize) return loot;
 
         const sourceCenterX = source.x + source.width / 2;
         const sourceBottom = source.y + source.height;
@@ -1294,6 +1637,7 @@ class Game {
             chest.persistentId = this.getChestId(chest);
             if (this.openedChests.has(chest.persistentId)) {
                 chest.opened = true;
+                chest.hidden = false;
             }
         });
 
@@ -1337,28 +1681,45 @@ class Game {
             wind_hook: {
                 name: 'Reliquia del Viento',
                 description: 'El gancho alcanza mas lejos.',
-                color: '#9ee8ff'
+                color: '#9ee8ff',
+                icon: '🌀'
             },
             ash_berry: {
                 name: 'Reliquia de Ceniza',
                 description: 'Las bayas curan un poco mas.',
-                color: '#ff7755'
+                color: '#ff7755',
+                icon: '🔥'
             },
             storm_oath: {
                 name: 'Juramento del Trueno',
-                description: 'Tu primer ataque cargado tras descansar golpea mas fuerte.',
-                color: '#d9f6ff'
+                description: 'Primer cargado tras descansar: +16 dano. Luego la espada gana +8 dano.',
+                color: '#d9f6ff',
+                icon: '⚡'
+            },
+            moon: {
+                name: 'Reliquia Lunar',
+                description: 'Una vez por descanso, evita un golpe mortal y deja al caballero con 1 HP.',
+                color: '#b8d7ff',
+                icon: '🌙'
             }
         };
-        return relics[id] || { name: 'Reliquia Antigua', description: 'Poder olvidado.', color: '#ffd700' };
+        return relics[id] || { name: 'Reliquia Antigua', description: 'Poder olvidado.', color: '#ffd700', icon: '◇' };
     }
 
     applyRelicEffects() {
         if (!this.player) return;
-        this.player.hookRangeBonus = this.acquiredRelics.has('wind_hook') ? 70 : 0;
-        this.player.berryHealBonus = this.acquiredRelics.has('ash_berry') ? 0.05 : 0;
-        if (this.acquiredRelics.has('storm_oath') && this.player.thunderRelicReady === undefined) {
+        this.equippedRelics = new Set(Array.from(this.equippedRelics || []).filter(id => this.acquiredRelics.has(id)).slice(0, 1));
+        this.player.hookRangeBonus = this.equippedRelics.has('wind_hook') ? 70 : 0;
+        this.player.berryHealBonus = this.equippedRelics.has('ash_berry') ? 0.05 : 0;
+        if (this.equippedRelics.has('storm_oath') && this.player.thunderRelicReady === undefined) {
             this.player.thunderRelicReady = true;
+        }
+        if (!this.equippedRelics.has('storm_oath')) {
+            this.player.thunderRelicReady = false;
+        }
+        this.player.lunarGraceEnabled = this.equippedRelics.has('moon');
+        if (this.player.lunarGraceReady === undefined) {
+            this.player.lunarGraceReady = true;
         }
     }
 
@@ -1370,8 +1731,11 @@ class Game {
 
         const info = this.getRelicInfo(id);
         this.acquiredRelics.add(id);
+        if (this.equippedRelics.size === 0) {
+            this.equippedRelics.add(id);
+        }
         this.applyRelicEffects();
-        if (id === 'storm_oath') this.player.thunderRelicReady = true;
+        if (id === 'storm_oath' && this.equippedRelics.has('storm_oath')) this.player.thunderRelicReady = true;
         audio.playBonfire();
         particles.spawnCollectGlow(x, y, info.color, 24);
         particles.addFloatingText(x, y - 18, info.name.toUpperCase(), info.color, 10, true);
@@ -1394,6 +1758,17 @@ class Game {
             audio.playThunder();
             this.lightningTraps.push(new LightningTrap(chest.x - 10, chest.y - 260, 260));
         }
+    }
+
+    spawnBossCoins(count, centerX, y) {
+        for (let i = 0; i < count; i++) {
+            const spread = (i - (count - 1) / 2) * 10;
+            const coin = new LootItem(centerX - 8 + spread, y - 18 - (i % 3) * 6, 'coin');
+            coin.vx = spread * 0.035;
+            coin.vy = -5.5 - (i % 4) * 0.45;
+            this.lootItems.push(coin);
+        }
+        particles.addFloatingText(centerX, y - 52, `+${count} MONEDAS`, '#ffd700', 10, true);
     }
 
     checkLevelMedals(levelNum) {
@@ -1428,6 +1803,29 @@ class Game {
 
         const y = Math.min(left.y, right.y) + Math.abs(left.y - right.y) * 0.5 + 4;
         this.platforms.push(new Platform(start, y, width, 14, 'bridge'));
+    }
+
+    getBonfireRespawnPoint(fallbackX = 80) {
+        if (!this.bonfire || !this.player) {
+            if (this.player && this.isAbyssLevel()) {
+                const platform = this.findSafePlatformNearX(fallbackX);
+                if (platform) {
+                    return {
+                        x: Math.max(platform.x + 8, Math.min(platform.x + platform.width - this.player.width - 8, fallbackX)),
+                        y: platform.y - this.player.height
+                    };
+                }
+            }
+            return {
+                x: fallbackX,
+                y: this.floorY - (this.player?.height || 58)
+            };
+        }
+
+        return {
+            x: this.bonfire.x,
+            y: this.bonfire.y + this.bonfire.height - this.player.height
+        };
     }
 
     completeWorldTransition() {
@@ -1473,6 +1871,8 @@ class Game {
             openedTreasureDoors: Array.from(this.openedTreasureDoors),
             greatPotionShopPurchased: this.greatPotionShopPurchased,
             acquiredRelics: Array.from(this.acquiredRelics),
+            equippedRelics: Array.from(this.equippedRelics),
+            unlockedStormRelicPuzzle: this.unlockedStormRelicPuzzle,
             completedChallenges: Array.from(this.completedChallenges),
             openedChallengeDoors: Array.from(this.openedChallengeDoors),
             levelMedals: Array.from(this.levelMedals),
@@ -1492,6 +1892,7 @@ class Game {
                 statsCratesBroken: this.player.statsCratesBroken,
                 statsEnemiesKilled: this.player.statsEnemiesKilled,
                 statsDamageBlocked: this.player.statsDamageBlocked,
+                lunarGraceReady: this.player.lunarGraceReady,
                 hpLevel: this.player.hpLevel,
                 staminaLevel: this.player.staminaLevel,
                 damageLevel: this.player.damageLevel,
@@ -1500,7 +1901,8 @@ class Game {
                 greyCoins: this.player.greyCoins,
                 potionLevel: this.player.potionLevel,
                 flasks: this.player.flasks,
-                hasForestKey: this.player.hasForestKey
+                hasForestKey: this.player.hasForestKey,
+                hasVoidKey: this.player.hasVoidKey
             }
         };
 
@@ -1532,6 +1934,8 @@ class Game {
         this.openedTreasureDoors = new Set(saveData.openedTreasureDoors || []);
         this.greatPotionShopPurchased = !!saveData.greatPotionShopPurchased;
         this.acquiredRelics = new Set(saveData.acquiredRelics || []);
+        this.equippedRelics = new Set(saveData.equippedRelics || []);
+        this.unlockedStormRelicPuzzle = !!saveData.unlockedStormRelicPuzzle;
         this.completedChallenges = new Set(saveData.completedChallenges || []);
         this.openedChallengeDoors = new Set(saveData.openedChallengeDoors || []);
         this.levelMedals = new Set(saveData.levelMedals || []);
@@ -1559,18 +1963,28 @@ class Game {
         this.player.updateUpgradedStats();
         this.player.hp = Math.min(this.player.maxHp, savedPlayer.hp ?? this.player.maxHp);
         this.player.stamina = Math.min(this.player.maxStamina, savedPlayer.stamina ?? this.player.maxStamina);
+        this.player.lunarGraceReady = savedPlayer.lunarGraceReady ?? true;
         this.player.statsCratesBroken = savedPlayer.statsCratesBroken ?? 0;
         this.player.statsEnemiesKilled = savedPlayer.statsEnemiesKilled ?? 0;
         this.player.statsDamageBlocked = savedPlayer.statsDamageBlocked ?? 0;
         this.player.hasForestKey = !!savedPlayer.hasForestKey;
+        this.player.hasVoidKey = !!savedPlayer.hasVoidKey;
 
         if (this.latestLitBonfire?.lit && this.latestLitBonfire.level === this.level) {
-            this.player.x = Math.max(0, this.latestLitBonfire.x - 30);
-            this.player.y = this.latestLitBonfire.y;
+            const bonfireSpawn = this.getBonfireRespawnPoint(this.latestLitBonfire.x);
+            this.latestLitBonfire.x = bonfireSpawn.x;
+            this.latestLitBonfire.y = bonfireSpawn.y;
+            this.player.x = Math.max(0, bonfireSpawn.x - 30);
+            this.player.y = bonfireSpawn.y;
             if (this.bonfire) this.bonfire.lit = true;
         } else {
             this.player.x = saveData.x ?? 80;
             this.player.y = saveData.y ?? (this.floorY - this.player.height);
+            if (this.isAbyssLevel() && this.player.y + this.player.height >= this.floorY - 2) {
+                const spawn = this.getSafeLevelStartPoint(this.player.x);
+                this.player.x = spawn.x;
+                this.player.y = spawn.y;
+            }
         }
 
         this.player.vx = 0;
@@ -1587,7 +2001,7 @@ class Game {
         this.level = levelNum;
         this.levelHeight = 750;
         this.forestDoorUnlocked = false;
-        
+
         // Limpiar entidades antiguas
         this.crates = [];
         this.spikes = [];
@@ -1603,6 +2017,7 @@ class Game {
         this.lavaStalactites = [];
         this.windCurrents = [];
         this.windCrystals = [];
+        this.voidCrystals = [];
         this.lightningTraps = [];
         this.loreTablets = [];
         this.treasureDoors = [];
@@ -1610,25 +2025,37 @@ class Game {
         this.relicPedestals = [];
         this.challengeDoors = [];
         this.miniBosses = [];
+        this.spectralPortals = [];
+        this.spectralWraiths = [];
         this.activeFireDots = [];
         this.secretDoor = null;
         this.secretRoomDoor = null;
         this.exitDoor = null;
         this.world4Lever = null;
+        this.world3StormSecretTablet = null;
+        this.world3StormElevator = null;
+        this.world3StormLever = null;
+        this.world3StormChest = null;
+        this.world3StormSecretPlatforms = [];
         this.world4SecretGate = null;
         this.world4SecretReturnDoor = null;
         this.world4MainBoundaryWall = null;
         this.world4SecretRoomBounds = null;
+        this.world4MoonRace = null;
+        this.world4MoonRacePlatform = null;
+        this.world4MoonRaceChest = null;
+        this.world5TransitionLever = null;
+        this.world5TransitionElevator = null;
         this.boss = null;
         this.shieldSecretDoor = null;
         this.shieldReturnDoor = null;
         this.shieldRoomTriggerCrates = null;
         particles.clear();
-        
+
         if (levelNum === 1) {
             // Inicializar Nivel 1-1 (El Pasillo con plataformas, obstáculos y cofres)
             this.levelWidth = 2500;
-            
+
             // Plataformas secretas (Habitaciones pequeñas de almas)
             this.platforms.push(new Platform(920, 200, 180));
             this.platforms.push(new Platform(1750, 180, 180));
@@ -1642,12 +2069,18 @@ class Game {
             this.crates.push(new Crate(1550, this.floorY - 38));
             this.crates.push(new Crate(940, 200 - 38)); // Caja en secret 1
             this.crates.push(new Crate(1770, 180 - 38)); // Caja en secret 2
-            
+
             // Único cofre del nivel (monedas de oro en la plataforma secreta)
-            this.chests.push(new TreasureChest(1000, 200 - 30, 'coins')); 
+            this.chests.push(new TreasureChest(1000, 200 - 30, 'coins'));
             this.loreTablets.push(new LoreTablet(1720, 180 - 52, "El primer juramento se gana|sin huir del filo."));
             this.challengeDoors.push(new ChallengeDoor(1840, 180 - 64, 'w1-oath-door', 'SOBREVIVE AL JURAMENTO', 'survive', 'relic:wind_hook', { duration: 420 }));
-            
+            this.challengeDoors[this.challengeDoors.length - 1].options.failOnDamage = true;
+            this.challengeDoors[this.challengeDoors.length - 1].options.cleanupOnComplete = true;
+            this.challengeDoors[this.challengeDoors.length - 1].options.enemies = [
+                new SkeletonArcher(1720, 180 - 54),
+                new SkeletonArcher(1980, 180 - 54)
+            ];
+
             // Obstáculos bajos (Spikes)
             this.spikes.push(new Spikes(460, this.floorY - 20, 2));
             this.spikes.push(new Spikes(900, this.floorY - 20, 3));
@@ -1658,7 +2091,7 @@ class Game {
             this.blades.push(new CeilingBlade(600, 20, 260));
             this.blades.push(new CeilingBlade(1250, 20, 280));
             this.blades.push(new CeilingBlade(1650, 20, 260));
-            
+
             // Enemigos voladores (Murciélagos)
             this.bats.push(new BatEnemy(350, this.floorY - 90));
             this.bats.push(new BatEnemy(800, this.floorY - 110));
@@ -1667,12 +2100,10 @@ class Game {
 
             // Enemigos terrestres
             this.skeletons.push(new SkeletonMinion(760, this.floorY - 54));
-            this.skeletons.push(new SkeletonMinion(1150, this.floorY - 54));
+            this.skeletons.push(new SkeletonMinion(1150, this.floorY - 54, 'helmet'));
             this.skeletons.push(new SkeletonMinion(1500, this.floorY - 54));
-            const oathGuard = new SkeletonMinion(2050, this.floorY - 54);
+            const oathGuard = new SkeletonMinion(2050, this.floorY - 54, 'helmet');
             oathGuard.eliteType = 'storm';
-            oathGuard.hp = 80;
-            oathGuard.maxHp = 80;
             this.skeletons.push(oathGuard);
 
             // Hoguera checkpoint Nivel 1-1
@@ -1735,7 +2166,7 @@ class Game {
 
             // Esqueletos normales patrullando
             this.skeletons.push(new SkeletonMinion(780, this.floorY - 54));
-            this.skeletons.push(new SkeletonMinion(1400, this.floorY - 54));
+            this.skeletons.push(new SkeletonMinion(1400, this.floorY - 54, 'helmet'));
 
             // Picos
             this.spikes.push(new Spikes(700, this.floorY - 20, 2));
@@ -1778,13 +2209,13 @@ class Game {
             this.spikes.push(new Spikes(750, this.floorY - 20, 2));
             this.spikes.push(new Spikes(1650, this.floorY - 20, 3));
             this.skeletons.push(new SkeletonMinion(400, this.floorY - 54));
-            this.skeletons.push(new SkeletonMinion(1300, this.floorY - 54));
+            this.skeletons.push(new SkeletonMinion(1300, this.floorY - 54, 'helmet'));
 
             // Enemigos patrullando directamente sobre las plataformas de piedra!
             this.archers.push(new SkeletonArcher(620, 200 - 54));
             this.archers.push(new SkeletonArcher(1220, 180 - 54));
             this.skeletons.push(new SkeletonMinion(920, 300 - 54));
-            this.skeletons.push(new SkeletonMinion(1820, 190 - 54));
+            this.skeletons.push(new SkeletonMinion(1820, 190 - 54, 'helmet'));
             this.bats.push(new BatEnemy(500, 100));
             this.bats.push(new BatEnemy(1400, 110));
 
@@ -1831,7 +2262,7 @@ class Game {
 
             // Esqueletos (reubicados a la derecha para dar tiempo a reaccionar)
             this.skeletons.push(new SkeletonMinion(280, 320 - 54));
-            this.skeletons.push(new SkeletonMinion(770, 300 - 54));
+            this.skeletons.push(new SkeletonMinion(770, 300 - 54, 'helmet'));
             this.skeletons.push(new SkeletonMinion(450, this.floorY - 54));
 
             // Portal de salida final
@@ -1856,7 +2287,7 @@ class Game {
         } else if (levelNum === 5) {
             // Inicializar Nivel 1-5 [NUEVO] (Cámara del Rey Esqueleto)
             this.levelWidth = 960;
-            
+
             // Cajas de apoyo en las esquinas de la arena
             this.crates.push(new Crate(50, this.floorY - 38));
             this.crates.push(new Crate(870, this.floorY - 38));
@@ -1903,7 +2334,7 @@ class Game {
             this.platforms.push(new Platform(180, 130, 160));
             this.platforms.push(new Platform(420, 100, 200));
             this.platforms.push(new Platform(680, 200, 180));
-            
+
             // Escaleras hacia terraza intermedia
             this.platforms.push(new Platform(900, 300, 260, 25));
             this.platforms.push(new Platform(940, 265, 200, 15));
@@ -1973,29 +2404,23 @@ class Game {
             this.bats.push(new BatEnemy(1580, -250, true));
             this.bats.push(new BatEnemy(1100, -620, true)); // Murciélago de fuego alto
 
-            // Skeletons y Archers con 40 HP
-            const skHigh = new SkeletonMinion(880, -540 - 54);
-            skHigh.hp = 40; skHigh.maxHp = 40;
+            // Esqueletos: la mayoria caen de un golpe con la espada de fuego; armadura completa aguanta dos.
+            const skHigh = new SkeletonMinion(880, -540 - 54, 'full');
             this.skeletons.push(skHigh); // Esqueleto alto
 
             const sk1 = new SkeletonMinion(230, 330 - 54);
-            sk1.hp = 40; sk1.maxHp = 40;
             this.skeletons.push(sk1);
 
             const sk2 = new SkeletonMinion(300, this.floorY - 54);
-            sk2.hp = 40; sk2.maxHp = 40;
             this.skeletons.push(sk2);
 
             const sk3 = new SkeletonMinion(700, this.floorY - 54);
-            sk3.hp = 40; sk3.maxHp = 40;
             this.skeletons.push(sk3);
 
-            const sk4 = new SkeletonMinion(1290, 60 - 54);
-            sk4.hp = 40; sk4.maxHp = 40;
+            const sk4 = new SkeletonMinion(1290, 60 - 54, 'full');
             this.skeletons.push(sk4);
 
             const sk5 = new SkeletonMinion(1540, -360 - 54);
-            sk5.hp = 40; sk5.maxHp = 40;
             this.skeletons.push(sk5);
 
             const arc1 = new SkeletonArcher(480, 100 - 54);
@@ -2074,11 +2499,31 @@ class Game {
             // Único cofre con Alma Verde (en la plataforma central más alta del cielo)
             this.chests.push(new TreasureChest(1950, -280 - 30, 'green_coin'));
             this.loreTablets.push(new LoreTablet(2155, -180 - 52, "La ceniza cura al que|se atreve a cruzar la llama."));
-            this.challengeDoors.push(new ChallengeDoor(2410, -80 - 64, 'w2-ash-door', 'DERROTA A LOS GUARDIAS DE CENIZA', 'defeat', 'relic:ash_berry', {
+            this.loreTablets.push(new LoreTablet(1240, this.floorY - 52, "La puerta dorada llama|a tres guardias de ceniza."));
+            this.challengeDoors.push(new ChallengeDoor(1320, this.floorY - 64, 'w2-ash-hunt-door', 'DERROTA A LOS GUARDIAS DE CENIZA', 'defeat', 'relic:ash_berry', {
                 enemies: [
-                    new SkeletonMinion(2260, -180 - 54),
-                    new SkeletonArcher(2520, -80 - 54)
-                ]
+                    Object.assign(new SkeletonMinion(520, 240 - 54, 'helmet'), { visualTint: 'gold', hp: 90, maxHp: 90, chaseOnSight: true, chaseRange: 420, chaseHeightRange: 170, chaseSpeed: 1.9 }),
+                    Object.assign(new SkeletonMinion(1660, -180 - 54, 'helmet'), { visualTint: 'gold', hp: 135, maxHp: 135, chaseOnSight: true, chaseRange: 420, chaseHeightRange: 170, chaseSpeed: 1.85 }),
+                    Object.assign(new SkeletonMinion(2640, 220 - 54, 'helmet'), { visualTint: 'gold', hp: 90, maxHp: 90, chaseOnSight: true, chaseRange: 420, chaseHeightRange: 170, chaseSpeed: 1.9 })
+                ],
+                finalEnemy: Object.assign(new SkeletonMinion(1500, this.floorY - 78, 'full'), {
+                    width: 54,
+                    height: 78,
+                    visualTint: 'red',
+                    visualScale: 1.35,
+                    visualGroundedSprite: true,
+                    weaponStyle: 'greatsword',
+                    shieldHits: 1,
+                    hp: 180,
+                    maxHp: 180,
+                    damage: 13,
+                    chaseOnSight: true,
+                    chaseRange: 520,
+                    chaseHeightRange: 180,
+                    chaseSpeed: 2.05,
+                    specialAttack: 'ash_greatsword',
+                    specialTimer: 110
+                })
             }));
 
             // Trampas y enemigos
@@ -2086,20 +2531,19 @@ class Game {
             this.fireTraps.push(new FireTrap(1500, this.floorY - 16));
             this.spikes.push(new Spikes(950, this.floorY - 20, 3));
             this.spikes.push(new Spikes(1750, this.floorY - 20, 3));
-            
+
             this.bats.push(new BatEnemy(450, 100, true));
             this.bats.push(new BatEnemy(1350, 120, true));
             this.bats.push(new BatEnemy(2200, 110, true));
             this.bats.push(new BatEnemy(1900, -360, true)); // Murciélago alto
-            
+
             // Enemigos en plataformas
             this.archers.push(new SkeletonArcher(520, 240 - 54));
             this.skeletons.push(new SkeletonMinion(1620, 210 - 54));
             this.archers.push(new SkeletonArcher(2670, 220 - 54));
 
             // Nuevos enemigos en plataformas altas
-            const skHigh = new SkeletonMinion(2180, -180 - 54);
-            skHigh.hp = 40; skHigh.maxHp = 40;
+            const skHigh = new SkeletonMinion(2180, -180 - 54, 'full');
             skHigh.eliteType = 'storm';
             this.skeletons.push(skHigh); // Esqueleto alto
 
@@ -2129,13 +2573,13 @@ class Game {
             this.platforms.push(new Platform(450, 240, 160));
             this.platforms.push(new Platform(700, 140, 180));
             this.platforms.push(new Platform(950, 40, 200));
-            
+
             // Sección vertical de grappling extremo
             this.platforms.push(new Platform(1200, -60, 180));
             this.platforms.push(new Platform(1450, -160, 160));
             this.platforms.push(new Platform(1700, -260, 180));
             this.platforms.push(new Platform(1950, -360, 200));
-            
+
             // Plataforma alta con el portal de entrada a la Habitación Secreta
             this.platforms.push(new Platform(2200, -440, 220));
 
@@ -2188,7 +2632,7 @@ class Game {
 
             // Enemigos en plataformas altas
             this.archers.push(new SkeletonArcher(1630, -600 - 54));
-            this.skeletons.push(new SkeletonMinion(1030, -600 - 54));
+            this.skeletons.push(new SkeletonMinion(1030, -600 - 54, 'full'));
             this.bats.push(new BatEnemy(1300, -750, true));
 
             // Hoguera checkpoint al final
@@ -2220,11 +2664,11 @@ class Game {
             this.platforms.push(new Platform(300, 320, 180));
             this.platforms.push(new Platform(550, 220, 180));
             this.platforms.push(new Platform(800, 120, 180));
-            
+
             this.platforms.push(new Platform(1100, 300, 160));
             this.platforms.push(new Platform(1350, 180, 200));
             this.platforms.push(new Platform(1650, 80, 180));
-            
+
             this.platforms.push(new Platform(1950, 290, 180));
             this.platforms.push(new Platform(2200, 190, 180));
 
@@ -2246,14 +2690,14 @@ class Game {
             this.crates.push(new Crate(1380, 142));
             this.crates.push(new Crate(1320, -80 - 38)); // Caja alta
             this.crates.push(new Crate(2320, -80 - 38)); // Caja alta
-            
+
             // Único cofre con monedas (5 monedas) en la plataforma central más alta del cielo
-            this.chests.push(new TreasureChest(1850, -280 - 30, 'coins')); 
+            this.chests.push(new TreasureChest(1850, -280 - 30, 'coins'));
 
             this.crates.push(new Crate(2550, this.floorY - 38));
             this.crates.push(new Crate(2550, this.floorY - 76)); // Caja apilada
             this.crates.push(new Crate(2588, this.floorY - 38)); // Caja de soporte
-            
+
             this.exitDoor = {
                 x: 2680,
                 y: this.floorY - 60,
@@ -2266,14 +2710,13 @@ class Game {
             this.bats.push(new BatEnemy(1200, 130, true));
             this.bats.push(new BatEnemy(2000, 100, true));
             this.bats.push(new BatEnemy(2050, -260, true)); // Murciélago alto
-            
+
             this.archers.push(new SkeletonArcher(570, 220 - 54));
             this.archers.push(new SkeletonArcher(1370, 180 - 54));
             this.skeletons.push(new SkeletonMinion(1970, 290 - 54));
 
             // Nuevos enemigos en plataformas altas
-            const skHigh = new SkeletonMinion(1820, -280 - 54);
-            skHigh.hp = 40; skHigh.maxHp = 40;
+            const skHigh = new SkeletonMinion(1820, -280 - 54, 'full');
             this.skeletons.push(skHigh); // Esqueleto alto
 
             const arcHigh = new SkeletonArcher(1580, -180 - 54);
@@ -2322,7 +2765,7 @@ class Game {
             this.spikes.push(new Spikes(950, this.floorY - 20, 3));
             this.spikes.push(new Spikes(1750, this.floorY - 20, 3));
             this.spikes.push(new Spikes(2500, this.floorY - 20, 3));
-            
+
             // Cajas
             this.crates.push(new Crate(420, -80 - 38)); // Caja alta
             this.crates.push(new Crate(1420, -80 - 38)); // Caja alta
@@ -2333,13 +2776,12 @@ class Game {
             this.bats.push(new BatEnemy(600, 120, true));
             this.bats.push(new BatEnemy(1800, 100, true));
             this.bats.push(new BatEnemy(900, -360, true)); // Murciélago alto
-            
+
             this.archers.push(new SkeletonArcher(970, 200 - 54));
             this.archers.push(new SkeletonArcher(2470, 200 - 54));
 
             // Nuevos enemigos en plataformas altas
-            const skHigh = new SkeletonMinion(920, -280 - 54);
-            skHigh.hp = 40; skHigh.maxHp = 40;
+            const skHigh = new SkeletonMinion(920, -280 - 54, 'full');
             this.skeletons.push(skHigh); // Esqueleto alto
 
             const arcHigh = new SkeletonArcher(680, -180 - 54);
@@ -2367,7 +2809,7 @@ class Game {
         } else if (levelNum === 11) {
             // Inicializar Nivel 2-6 [NUEVO] (Cámara del Demonio Ígneo)
             this.levelWidth = 960;
-            
+
             this.crates.push(new Crate(50, this.floorY - 38));
             this.crates.push(new Crate(870, this.floorY - 38));
 
@@ -2422,17 +2864,17 @@ class Game {
 
             // === PARKOUR MIXTO: salto normal + gancho ===
             // Zona baja — alcanzable a saltos (parkour)
-            this.platforms.push(new Platform(380, 290, 150, 25, 'wood'));   
-            this.platforms.push(new Platform(580, 200, 140, 25, 'wood'));   
-            this.platforms.push(new Platform(780, 290, 150, 25, 'wood'));   
-            this.platforms.push(new Platform(980, 180, 150, 25, 'wood')); 
-            this.platforms.push(new Platform(1180, 290, 140, 25, 'wood')); 
+            this.platforms.push(new Platform(380, 290, 150, 25, 'wood'));
+            this.platforms.push(new Platform(580, 200, 140, 25, 'wood'));
+            this.platforms.push(new Platform(780, 290, 150, 25, 'wood'));
+            this.platforms.push(new Platform(980, 180, 150, 25, 'wood'));
+            this.platforms.push(new Platform(1180, 290, 140, 25, 'wood'));
 
             // Zona media — mezcla salto y gancho
-            this.platforms.push(new Platform(1380, 100, 150, 25, 'wood')); 
-            this.platforms.push(new Platform(1600, 200, 150, 25, 'wood')); 
-            this.platforms.push(new Platform(1820, 60, 150, 25, 'wood'));  
-            this.platforms.push(new Platform(2040, 180, 150, 25, 'wood')); 
+            this.platforms.push(new Platform(1380, 100, 150, 25, 'wood'));
+            this.platforms.push(new Platform(1600, 200, 150, 25, 'wood'));
+            this.platforms.push(new Platform(1820, 60, 150, 25, 'wood'));
+            this.platforms.push(new Platform(2040, 180, 150, 25, 'wood'));
 
             // Zona alta — escalada con gancho vertical épica (tiers extendidos)
             this.platforms.push(new Platform(2100, -250, 150, 25, 'wood')); // requiere gancho
@@ -2440,7 +2882,6 @@ class Game {
             this.platforms.push(new Platform(2600, -280, 150, 25, 'wood')); // requiere gancho
             this.platforms.push(new Platform(2700, -500, 150, 25, 'wood')); // tier superior final del cofre
             this.chests.push(new TreasureChest(2740, -500 - 30, 'coins')); // Único cofre
-            this.relicPedestals.push(new RelicPedestal(2725, -500 - 46, 'storm_oath', 'Juramento del Trueno', 'Primer cargado tras descansar pega mas duro.', '#d9f6ff'));
             this.loreTablets.push(new LoreTablet(2310, -420 - 52, "Si el rayo no te mata,|puede jurarte lealtad."));
 
             // Puentes entre plataformas existentes del mundo 3-1
@@ -2458,8 +2899,8 @@ class Game {
             this.spikes.push(new Spikes(1700, this.floorY - 20, 3));
 
             // Enemigos
-            this.skeletons.push(new GoblinSwordsman(850, this.floorY - 54));
-            const stormGoblin = new GoblinSwordsman(2000, this.floorY - 54);
+            this.skeletons.push(new GoblinSwordsman(850, this.floorY - 54, 'blade'));
+            const stormGoblin = new GoblinSwordsman(2000, this.floorY - 54, 'wood_shield');
             stormGoblin.eliteType = 'storm';
             stormGoblin.hp = Math.max(stormGoblin.hp || 0, 85);
             stormGoblin.maxHp = stormGoblin.hp;
@@ -2496,10 +2937,10 @@ class Game {
             this.platforms.push(new Platform(1320, 190, 150, 25, 'wood'));
 
             // Zona media — mezcla gancho y salto
-            this.platforms.push(new Platform(1520, 80, 150, 25, 'wood'));  
-            this.platforms.push(new Platform(1760, 210, 150, 25, 'wood')); 
+            this.platforms.push(new Platform(1520, 80, 150, 25, 'wood'));
+            this.platforms.push(new Platform(1760, 210, 150, 25, 'wood'));
             this.platforms.push(new Platform(2000, 190, 150, 25, 'wood')); // puerta aquí
-            this.platforms.push(new Platform(2240, 60, 150, 25, 'wood'));  
+            this.platforms.push(new Platform(2240, 60, 150, 25, 'wood'));
 
             // Zona alta — escalada con gancho y tiers elevados
             this.platforms.push(new Platform(2300, -250, 150, 25, 'wood'));
@@ -2526,8 +2967,8 @@ class Game {
             this.fireTraps.push(new FireTrap(1600, this.floorY - 16));
 
             // Enemigos
-            this.skeletons.push(new GoblinSwordsman(700, this.floorY - 54));
-            this.skeletons.push(new GoblinSwordsman(2100, this.floorY - 54));
+            this.skeletons.push(new GoblinSwordsman(700, this.floorY - 54, 'blade'));
+            this.skeletons.push(new GoblinSwordsman(2100, this.floorY - 54, 'armored'));
             this.archers.push(new GoblinArcher(370, 300 - 54));
             this.archers.push(new GoblinArcher(1330, 190 - 54));
             this.archers.push(new GoblinArcher(1770, 210 - 54));
@@ -2568,10 +3009,10 @@ class Game {
             this.platforms.push(new Platform(1300, 170, 150, 25, 'wood'));
 
             // Zona media
-            this.platforms.push(new Platform(1550, 60, 150, 25, 'wood'));  
+            this.platforms.push(new Platform(1550, 60, 150, 25, 'wood'));
             this.platforms.push(new Platform(1880, 50, 150, 25, 'wood'));  // Hoguera aquí
-            this.platforms.push(new Platform(2120, 190, 140, 25, 'wood')); 
-            this.platforms.push(new Platform(2360, -50, 150, 25, 'wood')); 
+            this.platforms.push(new Platform(2120, 190, 140, 25, 'wood'));
+            this.platforms.push(new Platform(2360, -50, 150, 25, 'wood'));
 
             // Zona alta de tiers (acceso con gancho épico en vertical)
             this.platforms.push(new Platform(2550, -180, 150, 25, 'wood')); // requiere gancho
@@ -2602,11 +3043,11 @@ class Game {
 
             // Spikes
             this.spikes.push(new Spikes(680, this.floorY - 20, 3));
-            this.spikes.push(new Spikes(1900, this.floorY - 20, 4));
+            this.spikes.push(new Spikes(2040, this.floorY - 20, 4));
 
             // Enemigos
-            this.skeletons.push(new GoblinSwordsman(500, this.floorY - 54));
-            this.skeletons.push(new GoblinSwordsman(1700, this.floorY - 54));
+            this.skeletons.push(new GoblinSwordsman(500, this.floorY - 54, 'wood_shield'));
+            this.skeletons.push(new GoblinSwordsman(1700, this.floorY - 54, 'blade'));
             this.archers.push(new GoblinArcher(380, 300 - 54));
             this.archers.push(new GoblinArcher(910, 180 - 54));
             this.archers.push(new GoblinArcher(2560, -180 - 54));
@@ -2619,7 +3060,7 @@ class Game {
         } else if (levelNum === 15) {
             // Nivel 3-4 (El Pantano Sombrío)
             this.levelWidth = 3300;
-            this.levelHeight = 1500; // Extendida un 15% verticalmente
+            this.levelHeight = 3300; // Altura extra para el ascensor secreto del trueno
 
             this.bonfire = null; // Sin hoguera por petición del usuario
             this.exitDoor = {
@@ -2628,6 +3069,19 @@ class Game {
                 width: 40,
                 height: 60
             };
+            this.world3StormSecretTablet = new LoreTablet(2070, this.floorY - 52, "No todo camino|nace en el suelo.");
+            this.world3StormSecretTablet.secretType = 'storm_puzzle';
+            this.loreTablets.push(this.world3StormSecretTablet);
+            this.world3StormChest = new TreasureChest(2148, -2380 - 30, 'storm_relic');
+            this.world3StormChest.requiresStormPuzzle = true;
+            this.world3StormChest.unlocked = this.unlockedStormRelicPuzzle || this.acquiredRelics.has('storm_oath');
+            this.world3StormChest.hidden = !this.world3StormChest.unlocked && !this.acquiredRelics.has('storm_oath');
+            this.chests.push(this.world3StormChest);
+            if (this.acquiredRelics.has('storm_oath')) {
+                this.world3StormChest.opened = true;
+                this.world3StormChest.hidden = false;
+            }
+            const stormSecretVisible = this.unlockedStormRelicPuzzle || this.acquiredRelics.has('storm_oath');
 
             // === PARKOUR MIXTO ===
             // Zona baja — saltable
@@ -2639,10 +3093,10 @@ class Game {
             this.platforms.push(new Platform(1320, 175, 150, 25, 'wood'));
 
             // Zona media — mezcla gancho y salto
-            this.platforms.push(new Platform(1520, 70, 150, 25, 'wood'));  
-            this.platforms.push(new Platform(1760, 200, 150, 25, 'wood')); 
+            this.platforms.push(new Platform(1520, 70, 150, 25, 'wood'));
+            this.platforms.push(new Platform(1760, 200, 150, 25, 'wood'));
             this.platforms.push(new Platform(2000, 185, 150, 25, 'wood')); // puerta aquí
-            this.platforms.push(new Platform(2240, 55, 150, 25, 'wood'));  
+            this.platforms.push(new Platform(2240, 55, 150, 25, 'wood'));
 
             // Zona alta — tiers elevados y copas de los árboles
             this.platforms.push(new Platform(2300, -250, 150, 25, 'wood'));
@@ -2650,6 +3104,31 @@ class Game {
             this.platforms.push(new Platform(2750, -580, 150, 25, 'wood'));
             this.platforms.push(new Platform(2950, -700, 150, 25, 'wood'));// cofre en la cima extrema
             this.chests.push(new TreasureChest(2990, -700 - 30, 'coins'));
+            this.world3StormElevator = new StormElevatorPlatform(3120, -700, -2200, 170, 22);
+            if (stormSecretVisible) {
+                this.world3StormElevator.activate();
+            } else {
+                this.world3StormElevator.hidden = true;
+            }
+            this.platforms.push(this.world3StormElevator);
+            this.world3StormSecretPlatforms = [
+                new Platform(2920, -2220, 150, 22, 'wood'),
+                new Platform(2660, -2365, 140, 22, 'wood'),
+                new Platform(2400, -2510, 140, 22, 'wood'),
+                new Platform(2140, -2380, 160, 22, 'wood')
+            ];
+            this.world3StormSecretPlatforms.forEach(platform => {
+                platform.hidden = !stormSecretVisible;
+                this.platforms.push(platform);
+            });
+            this.world3StormLever = {
+                x: 2205,
+                y: -2380 - 32,
+                width: 24,
+                height: 32,
+                visible: stormSecretVisible,
+                activated: this.unlockedStormRelicPuzzle || this.acquiredRelics.has('storm_oath')
+            };
 
             // Puentes entre plataformas existentes del mundo 3-4
             this.addWorld3BridgeBetween(this.platforms[0], this.platforms[2]);
@@ -2669,7 +3148,7 @@ class Game {
             this.blades.push(new CeilingBlade(1600, 20, 260));
 
             // Enemigos
-            this.skeletons.push(new GoblinSwordsman(1500, this.floorY - 54));
+            this.skeletons.push(new GoblinSwordsman(1500, this.floorY - 54, 'armored'));
             this.archers.push(new GoblinArcher(370, 295 - 54));
             this.archers.push(new GoblinArcher(1770, 200 - 54));
             this.archers.push(new GoblinArcher(2760, -580 - 54));
@@ -2702,11 +3181,11 @@ class Game {
             this.platforms.push(new Platform(1300, 180, 150, 25, 'wood'));
 
             // Zona media — mezcla
-            this.platforms.push(new Platform(1500, 75, 150, 25, 'wood'));  
-            this.platforms.push(new Platform(1740, 210, 150, 25, 'wood')); 
-            this.platforms.push(new Platform(1980, 60, 150, 25, 'wood'));  
-            this.platforms.push(new Platform(2220, 195, 150, 25, 'wood')); 
-            this.platforms.push(new Platform(2460, 50, 150, 25, 'wood'));  
+            this.platforms.push(new Platform(1500, 75, 150, 25, 'wood'));
+            this.platforms.push(new Platform(1740, 210, 150, 25, 'wood'));
+            this.platforms.push(new Platform(1980, 60, 150, 25, 'wood'));
+            this.platforms.push(new Platform(2220, 195, 150, 25, 'wood'));
+            this.platforms.push(new Platform(2460, 50, 150, 25, 'wood'));
 
             // Zona alta — tiers elevados góticos forestales
             this.platforms.push(new Platform(2500, -220, 150, 25, 'wood'));
@@ -2732,8 +3211,8 @@ class Game {
             this.spikes.push(new Spikes(2250, this.floorY - 20, 3));
 
             // Enemigos
-            this.skeletons.push(new GoblinSwordsman(900, this.floorY - 54));
-            this.skeletons.push(new GoblinSwordsman(2400, this.floorY - 54));
+            this.skeletons.push(new GoblinSwordsman(900, this.floorY - 54, 'blade'));
+            this.skeletons.push(new GoblinSwordsman(2400, this.floorY - 54, 'wood_shield'));
             this.archers.push(new GoblinArcher(550, 195 - 54));
             this.archers.push(new GoblinArcher(1740, 210 - 54));
             this.archers.push(new GoblinArcher(2950, 85 - 54));
@@ -2757,10 +3236,10 @@ class Game {
             this.platforms.push(new Platform(1120, 295, 140, 25, 'wood'));
 
             // Zona media — mezcla
-            this.platforms.push(new Platform(1320, 80, 150, 25, 'wood'));  
-            this.platforms.push(new Platform(1560, 210, 150, 25, 'wood')); 
-            this.platforms.push(new Platform(1800, 65, 150, 25, 'wood'));  
-            this.platforms.push(new Platform(2040, 200, 150, 25, 'wood')); 
+            this.platforms.push(new Platform(1320, 80, 150, 25, 'wood'));
+            this.platforms.push(new Platform(1560, 210, 150, 25, 'wood'));
+            this.platforms.push(new Platform(1800, 65, 150, 25, 'wood'));
+            this.platforms.push(new Platform(2040, 200, 150, 25, 'wood'));
 
             // Zona alta — tiers elevados y cúpulas del bosque
             this.platforms.push(new Platform(2040, -150, 150, 25, 'wood'));
@@ -2782,7 +3261,7 @@ class Game {
             this.spikes.push(new Spikes(900, this.floorY - 20, 3));
             this.spikes.push(new Spikes(2100, this.floorY - 20, 3));
 
-            this.skeletons.push(new GoblinSwordsman(700, this.floorY - 54));
+            this.skeletons.push(new GoblinSwordsman(700, this.floorY - 54, 'armored'));
             this.archers.push(new GoblinArcher(560, 190 - 54));
             this.archers.push(new GoblinArcher(1560, 210 - 54));
             this.archers.push(new GoblinArcher(2520, 90 - 54));
@@ -2797,6 +3276,7 @@ class Game {
                 lit: this.latestLitBonfire.level === 17 && this.latestLitBonfire.lit,
                 animTime: 0
             };
+            this.loreTablets.push(new LoreTablet(2660, this.floorY - 52, "Cuando el gigante caiga,|el cielo abrira otra guerra."));
 
             this.exitDoor = {
                 x: 2940,
@@ -2819,7 +3299,6 @@ class Game {
             // Plataformas altas de respiro: alcanzables con gancho desde la arena
             this.platforms.push(new Platform(145, this.floorY - 205, 150, 25, 'wood'));
             this.platforms.push(new Platform(665, this.floorY - 205, 150, 25, 'wood'));
-            this.loreTablets.push(new LoreTablet(390, this.floorY - 52, "Cuando el gigante caiga,|el cielo abrira otra guerra."));
 
             if (this.boss3Defeated) {
                 this.boss = null;
@@ -2865,15 +3344,15 @@ class Game {
             this.platforms.push(new Platform(300, 340, 120, 20));
             this.platforms.push(new Platform(450, 260, 120, 20));
             this.platforms.push(new Platform(600, 180, 120, 20));
-            
+
             // Gran puente gótico aéreo de piedra
             this.platforms.push(new Platform(750, 100, 550, 20));
-            
+
             // Más plataformas e interconexiones verticales
             this.platforms.push(new Platform(1400, 220, 150, 20));
             this.platforms.push(new Platform(1650, 300, 150, 20));
             this.platforms.push(new Platform(1900, 200, 150, 20));
-            
+
             // Segundo puente aéreo gigante
             this.platforms.push(new Platform(2150, 100, 500, 20));
             this.platforms.push(new Platform(2750, 145, 200, 20));
@@ -2888,7 +3367,7 @@ class Game {
             this.windSentinels.push(new WindSentinel(1510, 135));
             this.loreTablets.push(new LoreTablet(360, this.floorY - 52, "El castillo no cayo.|Se nego a tocar la tierra."));
             this.loreTablets.push(new LoreTablet(2180, 100 - 52, "No abras todo lo dorado|sin escuchar primero el trueno."));
-            this.challengeDoors.push(new ChallengeDoor(2450, 100 - 64, 'w4-storm-vault', 'SOBREVIVE AL PULSO DEL TRONO', 'survive', 'great_potion', { duration: 540 }));
+            this.challengeDoors.push(new ChallengeDoor(2450, 100 - 64, 'w4-storm-vault', 'SOBREVIVE AL PULSO DEL TRONO', 'survive', 'coins', { duration: 540, coinReward: 15 }));
 
             this.crates.push(new Crate(1230, 100 - 38));
             this.chests.push(new TreasureChest(640, 180 - 30, 'coins'));
@@ -2896,19 +3375,19 @@ class Game {
             this.chests[this.chests.length - 1].eventType = 'lightning';
             this.spikes.push(new Spikes(1480, this.floorY - 20, 3));
             this.blades.push(new CeilingBlade(1160, -80, 210));
-            
+
             // Incremento masivo de patrullas enemigas blindadas y arqueros angulares
-            this.skeletons.push(new SkeletonMinion(600, this.floorY - 54, 'helmetless'));
-            this.skeletons.push(new SkeletonMinion(1200, this.floorY - 54, 'full'));
-            this.skeletons.push(new SkeletonMinion(1900, this.floorY - 54, 'helmetless'));
-            this.skeletons.push(new SkeletonMinion(1000, 100 - 54, 'full')); // Patrullando puente
-            this.skeletons.push(new SkeletonMinion(2300, 100 - 54, 'helmetless')); // Patrullando puente 2
-            
+            this.skeletons.push(new SkeletonMinion(600, this.floorY - 54, 'knight_light'));
+            this.skeletons.push(new SkeletonMinion(1200, this.floorY - 54, 'iron_shield'));
+            this.skeletons.push(new SkeletonMinion(1900, this.floorY - 54, 'knight_light'));
+            this.skeletons.push(new SkeletonMinion(1000, 100 - 54, 'knight_full')); // Patrullando puente
+            this.skeletons.push(new SkeletonMinion(2300, 100 - 54, 'knight_light')); // Patrullando puente 2
+
             this.archers.push(new SkeletonArcher(780, 100 - 54));
             this.archers.push(new SkeletonArcher(1220, 100 - 54, 'helmetless'));
             this.archers.push(new SkeletonArcher(2180, 100 - 54, 'full'));
             this.archers.push(new SkeletonArcher(2600, 100 - 54));
-            
+
             this.bats.push(new BatEnemy(900, 50));
             this.bats.push(new BatEnemy(1500, 150));
             this.bats.push(new BatEnemy(2100, 50));
@@ -2935,10 +3414,10 @@ class Game {
             this.platforms.push(new Platform(700, 120, 140, 20));
             this.platforms.push(new Platform(900, 20, 140, 20));
             this.platforms.push(new Platform(1100, -80, 140, 20));
-            
+
             // Pasarela aérea gigante de magma
             this.platforms.push(new Platform(1300, -180, 600, 20));
-            
+
             // Descenso y ascenso final hacia la torre de salida
             this.platforms.push(new Platform(2000, -80, 150, 20));
             this.platforms.push(new Platform(2200, 20, 150, 20));
@@ -2974,18 +3453,18 @@ class Game {
             this.blades.push(new CeilingBlade(2500, -210, 210));
             this.chests.push(new TreasureChest(1120, -80 - 30, 'coins'));
             this.chests.push(new TreasureChest(2240, 20 - 30, 'coins'));
-            
+
             // Enemigos
-            this.skeletons.push(new SkeletonMinion(500, this.floorY - 54, 'helmetless'));
-            this.skeletons.push(new SkeletonMinion(1500, this.floorY - 54, 'full'));
-            this.skeletons.push(new SkeletonMinion(2500, this.floorY - 54, 'helmetless'));
-            this.skeletons.push(new SkeletonMinion(1600, -180 - 54, 'full')); // En el puente aéreo
-            
+            this.skeletons.push(new SkeletonMinion(500, this.floorY - 54, 'knight_light'));
+            this.skeletons.push(new SkeletonMinion(1500, this.floorY - 54, 'iron_shield'));
+            this.skeletons.push(new SkeletonMinion(2500, this.floorY - 54, 'knight_light'));
+            this.skeletons.push(new SkeletonMinion(1600, -180 - 54, 'knight_full')); // En el puente aéreo
+
             this.archers.push(new SkeletonArcher(720, 120 - 54));
             this.archers.push(new SkeletonArcher(1400, -180 - 54, 'helmetless'));
             this.archers.push(new SkeletonArcher(1800, -180 - 54, 'full'));
             this.archers.push(new SkeletonArcher(2750, 0 - 54));
-            
+
             this.bats.push(new BatEnemy(600, -50));
             this.bats.push(new BatEnemy(1200, -150));
             this.bats.push(new BatEnemy(1800, -250));
@@ -3004,11 +3483,11 @@ class Game {
             this.platforms.push(new Platform(350, 300, 150, 20));
             this.platforms.push(new Platform(550, 200, 150, 20));
             this.platforms.push(new Platform(750, 100, 150, 20));
-            
+
             // Puente de Doble Cubierta
             this.platforms.push(new Platform(950, 0, 800, 20)); // Cubierta inferior
             this.platforms.push(new Platform(1100, -150, 500, 20)); // Cubierta superior
-            
+
             // Conexiones de salida en zigzag
             this.platforms.push(new Platform(1850, -50, 150, 20));
             this.platforms.push(new Platform(2050, 50, 150, 20));
@@ -3033,19 +3512,19 @@ class Game {
             this.blades.push(new CeilingBlade(2380, -330, 190));
             this.chests.push(new TreasureChest(1180, -150 - 30, 'berry'));
             this.chests.push(new TreasureChest(2760, this.floorY - 30, 'coins'));
-            
+
             // Enemigos
-            this.skeletons.push(new SkeletonMinion(600, this.floorY - 54, 'helmetless'));
-            this.skeletons.push(new SkeletonMinion(1300, this.floorY - 54, 'full'));
-            this.skeletons.push(new SkeletonMinion(2000, this.floorY - 54, 'helmetless'));
-            this.skeletons.push(new SkeletonMinion(1200, 0 - 54, 'full'));
-            this.skeletons.push(new SkeletonMinion(1500, -150 - 54, 'helmetless'));
-            
+            this.skeletons.push(new SkeletonMinion(600, this.floorY - 54, 'knight_light'));
+            this.skeletons.push(new SkeletonMinion(1300, this.floorY - 54, 'iron_shield'));
+            this.skeletons.push(new SkeletonMinion(2000, this.floorY - 54, 'knight_light'));
+            this.skeletons.push(new SkeletonMinion(1200, 0 - 54, 'knight_full'));
+            this.skeletons.push(new SkeletonMinion(1500, -150 - 54, 'knight_light'));
+
             this.archers.push(new SkeletonArcher(1000, 0 - 54));
             this.archers.push(new SkeletonArcher(1350, -150 - 54, 'helmetless'));
             this.archers.push(new SkeletonArcher(1650, 0 - 54, 'full'));
             this.archers.push(new SkeletonArcher(2500, -150 - 54));
-            
+
             this.bats.push(new BatEnemy(800, -100));
             this.bats.push(new BatEnemy(1400, -250));
             this.bats.push(new BatEnemy(2200, -100));
@@ -3098,7 +3577,7 @@ class Game {
             this.platforms.push(new Platform(2580, -1060, 120, 20));
             this.platforms.push(new Platform(2290, -945, 170, 25));
             this.world4Lever = { x: 2350, y: -945 - 32, width: 24, height: 32, activated: false };
-            
+
             // Habitación secreta oscura: se entra por puerta, con parkour y mini boss al final
             this.world4SecretRoomBounds = { x: 4180, y: -1120, width: 1660, height: 640 };
             this.platforms.push(new Platform(4220, -500, 1560, 28));
@@ -3120,13 +3599,13 @@ class Game {
             this.windSentinels.push(new WindSentinel(4940, -680));
             this.loreTablets.push(new LoreTablet(1940, -92, "Nadie encuentra al centinela.|El centinela encuentra al cobarde."));
             this.loreTablets.push(new LoreTablet(4320, -552, "Si la antorcha aun arde aqui,|algo mas antiguo respira cerca."));
-            
-            this.skeletons.push(new SkeletonMinion(900, this.floorY - 54, 'helmetless'));
-            this.skeletons.push(new SkeletonMinion(500, this.floorY - 54, 'full'));
-            this.skeletons.push(new SkeletonMinion(1400, this.floorY - 54, 'helmetless'));
-            this.skeletons.push(new SkeletonMinion(2300, this.floorY - 54, 'full'));
-            this.skeletons.push(new SkeletonMinion(1540, 95 - 54, 'helmetless'));
-            this.skeletons.push(new SkeletonMinion(2220, -170 - 54, 'full'));
+
+            this.skeletons.push(new SkeletonMinion(900, this.floorY - 54, 'knight_light'));
+            this.skeletons.push(new SkeletonMinion(500, this.floorY - 54, 'iron_shield'));
+            this.skeletons.push(new SkeletonMinion(1400, this.floorY - 54, 'knight_light'));
+            this.skeletons.push(new SkeletonMinion(2300, this.floorY - 54, 'knight_full'));
+            this.skeletons.push(new SkeletonMinion(1540, 95 - 54, 'knight_light'));
+            this.skeletons.push(new SkeletonMinion(2220, -170 - 54, 'iron_shield'));
 
             this.archers.push(new SkeletonArcher(1890, -40 - 54, 'helmetless'));
             this.archers.push(new SkeletonArcher(620, 200 - 54));
@@ -3162,6 +3641,31 @@ class Game {
             this.platforms.push(new Platform(3560, -360, 230, 22));
             this.platforms.push(new Platform(1460, -520, 220, 22));
             this.platforms.push(new Platform(1740, -650, 220, 22));
+            this.world4MoonRacePlatform = new Platform(3525, -685, 250, 22);
+            this.world4MoonRacePlatform.hidden = !this.completedChallenges.has('w4-moon-race');
+            this.world4MoonRacePlatform.requiresHookBonus = true;
+            this.platforms.push(this.world4MoonRacePlatform);
+            this.world4MoonRace = {
+                id: 'w4-moon-race',
+                x: 3405,
+                y: -360 - 64,
+                width: 48,
+                height: 64,
+                active: false,
+                failed: false,
+                completed: this.completedChallenges.has('w4-moon-race'),
+                timer: 1080,
+                startX: 120,
+                startY: this.floorY - (this.player?.height || 58),
+                finishButton: { x: 3638, y: -685 - 32, width: 24, height: 32, visible: this.completedChallenges.has('w4-moon-race') }
+            };
+            this.world4MoonRaceChest = new TreasureChest(3616, -685 - 30, 'moon_relic');
+            this.world4MoonRaceChest.hidden = !this.completedChallenges.has('w4-moon-race') && !this.acquiredRelics.has('moon');
+            this.chests.push(this.world4MoonRaceChest);
+            if (this.acquiredRelics.has('moon')) {
+                this.world4MoonRaceChest.opened = true;
+                this.world4MoonRaceChest.hidden = false;
+            }
 
             this.windCurrents.push(new WindCurrent(620, -120, 110, this.floorY + 120, -1.16));
             this.windCurrents.push(new WindCurrent(1680, -760, 120, this.floorY + 760, -1.28));
@@ -3178,14 +3682,14 @@ class Game {
             this.blades.push(new CeilingBlade(1330, -300, 220));
             this.blades.push(new CeilingBlade(2470, -520, 210));
             this.crates.push(new Crate(1600, -60 - 38, 'ambush'));
-            this.chests.push(new TreasureChest(1505, -520 - 30, 'grey_coin'));
+            this.chests.push(new TreasureChest(1505, -520 - 30, 'coins'));
             this.chests.push(new TreasureChest(1810, -650 - 30, 'violet_berry'));
             this.chests.push(new TreasureChest(3335, -360 - 30, 'coins'));
 
-            this.skeletons.push(new SkeletonMinion(640, this.floorY - 54, 'helmetless'));
-            this.skeletons.push(new SkeletonMinion(1320, -60 - 54, 'full'));
-            this.skeletons.push(new SkeletonMinion(2400, -210 - 54, 'helmetless'));
-            this.skeletons.push(new SkeletonMinion(2940, this.floorY - 54, 'full'));
+            this.skeletons.push(new SkeletonMinion(640, this.floorY - 54, 'knight_light'));
+            this.skeletons.push(new SkeletonMinion(1320, -60 - 54, 'iron_shield'));
+            this.skeletons.push(new SkeletonMinion(2400, -210 - 54, 'knight_light'));
+            this.skeletons.push(new SkeletonMinion(2940, this.floorY - 54, 'knight_full'));
             this.archers.push(new SkeletonArcher(850, 80 - 54));
             this.archers.push(new SkeletonArcher(1500, -60 - 54, 'helmetless'));
             this.archers.push(new SkeletonArcher(2660, -340 - 54, 'full'));
@@ -3241,12 +3745,12 @@ class Game {
             this.blades.push(new CeilingBlade(3120, -560, 210));
             this.crates.push(new Crate(2440, -610 - 38));
             this.chests.push(new TreasureChest(2540, -610 - 30, 'great_potion'));
-            this.chests.push(new TreasureChest(2100, this.floorY - 30, 'grey_coin'));
+            this.chests.push(new TreasureChest(2100, this.floorY - 30, 'coins'));
 
-            this.skeletons.push(new SkeletonMinion(640, this.floorY - 54, 'helmetless'));
-            this.skeletons.push(new SkeletonMinion(1320, this.floorY - 54, 'full'));
-            this.skeletons.push(new SkeletonMinion(1980, -115 - 54, 'helmetless'));
-            this.skeletons.push(new SkeletonMinion(3030, -300 - 54, 'full'));
+            this.skeletons.push(new SkeletonMinion(640, this.floorY - 54, 'knight_light'));
+            this.skeletons.push(new SkeletonMinion(1320, this.floorY - 54, 'iron_shield'));
+            this.skeletons.push(new SkeletonMinion(1980, -115 - 54, 'knight_light'));
+            this.skeletons.push(new SkeletonMinion(3030, -300 - 54, 'knight_full'));
             this.archers.push(new SkeletonArcher(960, 35 - 54));
             this.archers.push(new SkeletonArcher(1620, 35 - 54, 'helmetless'));
             this.archers.push(new SkeletonArcher(2300, -265 - 54, 'full'));
@@ -3289,6 +3793,455 @@ class Game {
             }
 
             particles.addFloatingText(80, this.floorY - 120, "MUNDO 4-7 (JEFE)", "#9ee8ff", 14, true);
+        } else if (levelNum === 26) {
+            // Nivel 26: La Recámara del Ascensor (Mundo 4-Transition)
+            this.levelWidth = 1200;
+            this.levelHeight = 2200; // Pozo vertical masivo de descenso (1500px de caída de cámara)
+            this.bonfire = null; // Sin hoguera aquí
+
+            // Repisa de entrada superior
+            this.platforms.push(new Platform(50, -1450, 320, 25));
+
+            // Palanca interactuable del ascensor en la repisa superior
+            this.world5TransitionLever = { x: 260, y: -1450 - 32, width: 24, height: 32, activated: false };
+
+            // Plataforma móvil del Ascensor Gótico
+            this.world5TransitionElevator = {
+                x: 420,
+                y: -1450,
+                width: 200,
+                height: 25,
+                startY: -1450,
+                targetY: 400,
+                moving: false,
+                reachedBottom: false
+            };
+
+            // Repisa inferior del pozo
+            this.platforms.push(new Platform(700, 400, 450, 25));
+
+            // ---- NUEVA ADICIÓN: PLATAFORMAS DE EXPLORACIÓN Y TRAMPAS ----
+            // Trampa de picos en el fondo izquierdo del pozo (peligro al caer del ascensor)
+            this.spikes.push(new Spikes(50, 400, 19));
+
+            // Repisa izquierda intermedia (con cofre/caja de recompensa)
+            this.platforms.push(new Platform(50, -850, 140, 22, 'stone'));
+            this.crates.push(new Crate(90, -850 - 32));
+
+            // Repisa derecha intermedia
+            this.platforms.push(new Platform(1010, -320, 140, 22, 'stone'));
+            this.crates.push(new Crate(1050, -320 - 32));
+
+            // Repisa izquierda inferior
+            this.platforms.push(new Platform(80, 100, 140, 22, 'stone'));
+            this.crates.push(new Crate(120, 100 - 32));
+            // -------------------------------------------------------------
+
+            // La Gran Puerta Espectral / Vórtice Violeta
+            this.exitDoor = {
+                x: 950,
+                y: 400 - 60,
+                width: 60,
+                height: 60
+            };
+
+            this.domBossHud.classList.add('hidden');
+            particles.addFloatingText(80, this.floorY - 120, "EL DESCENSO", "#9ee8ff", 14, true);
+        } else if (levelNum === 27) {
+            // Nivel 27: Umbral del Vacío (Mundo 5-1)
+            this.levelWidth = 2400;
+            this.levelHeight = 750;
+            this.bonfire = {
+                x: 98,
+                y: this.floorY - 80 - 65,
+                width: 48,
+                height: 65,
+                lit: this.latestLitBonfire.level === 27 && this.latestLitBonfire.lit,
+                animTime: 0
+            };
+            this.exitDoor = { x: 2240, y: this.floorY - 80 - 60, width: 40, height: 60 };
+
+            // Inicializar listas espectrales
+            this.spectralPortals = [];
+            this.spectralWraiths = [];
+
+            // Plataformas normales de piedra del abismo
+            this.platforms.push(new Platform(50, this.floorY - 80, 220, 22, 'stone'));
+            this.platforms.push(new Platform(250, this.floorY - 80, 160, 22, 'stone'));
+            this.platforms.push(new Platform(500, this.floorY - 160, 180, 22, 'stone'));
+            this.platforms.push(new Platform(735, this.floorY - 56, 130, 22, 'stone'));
+
+            // Portales enlazados
+            this.spectralPortals.push(new SpectralPortal(780, this.floorY - 120, 1200, 180, 'horizontal'));
+            this.spectralPortals.push(new SpectralPortal(1200, 180, 780, this.floorY - 120, 'horizontal'));
+
+            this.platforms.push(new Platform(1120, 244, 200, 22, 'stone'));
+            this.platforms.push(new Platform(1450, 180, 160, 22, 'stone'));
+
+            // Portales enlazados
+            this.spectralPortals.push(new SpectralPortal(1500, 116, 1800, this.floorY - 140, 'horizontal'));
+            this.spectralPortals.push(new SpectralPortal(1800, this.floorY - 140, 1500, 116, 'horizontal'));
+
+            this.platforms.push(new Platform(1750, this.floorY - 76, 160, 22, 'stone'));
+            this.platforms.push(new Platform(1990, this.floorY - 125, 150, 22, 'stone'));
+            this.platforms.push(new Platform(2180, this.floorY - 80, 190, 22, 'stone'));
+
+            // Plataformas invisibles VoidPlatform que sirven para cruzar los picos intermedios
+            this.platforms.push(new VoidPlatform(920, this.floorY - 100, 120));
+            this.platforms.push(new VoidPlatform(1070, this.floorY - 160, 120));
+
+            // Enemigos
+            this.spectralWraiths.push(new SpectralWraith(550, this.floorY - 210, 'blade'));
+            this.spectralWraiths.push(new SpectralWraith(1480, 80, 'staff'));
+
+            // Cajas y tesoros
+            this.crates.push(new Crate(300, this.floorY - 80 - 32));
+            this.crates.push(new Crate(332, this.floorY - 80 - 32));
+            this.chests.push(new TreasureChest(1220, 244 - 36, 'storm_potion'));
+
+            particles.addFloatingText(80, this.floorY - 120, "MUNDO 5-1: UMBRAL DEL VACÍO", "#b642f5", 14, true);
+        } else if (levelNum === 28) {
+            // Nivel 28: Catacumbas de Cristal (Mundo 5-2)
+            this.levelWidth = 2200;
+            this.levelHeight = 750;
+            this.bonfire = null;
+            this.exitDoor = { x: 2050, y: this.floorY - 90 - 60, width: 40, height: 60 };
+
+            this.spectralPortals = [];
+            this.spectralWraiths = [];
+
+            // Plataforma inicial
+            this.platforms.push(new Platform(50, this.floorY - 80, 220, 22, 'stone'));
+
+            // Plataformas invisibles que el Caballero debe revelar con el escudo
+            this.platforms.push(new VoidPlatform(340, this.floorY - 130, 110));
+            this.platforms.push(new VoidPlatform(520, this.floorY - 180, 110));
+            this.platforms.push(new VoidPlatform(700, this.floorY - 220, 110));
+            this.platforms.push(new VoidPlatform(880, this.floorY - 180, 110));
+            this.platforms.push(new VoidPlatform(1060, this.floorY - 130, 110));
+            this.voidCrystals.push(new VoidCrystal(1240, this.floorY - 125));
+
+            // Repisa central firme
+            this.platforms.push(new Platform(1250, this.floorY - 90, 250, 22, 'stone'));
+
+            // Segundo tramo de plataformas invisibles
+            this.platforms.push(new VoidPlatform(1560, this.floorY - 140, 120));
+            this.platforms.push(new VoidPlatform(1740, this.floorY - 190, 120));
+            this.platforms.push(new Platform(1980, this.floorY - 90, 180, 22, 'stone'));
+
+            // Enemigos
+            this.spectralWraiths.push(new SpectralWraith(520, this.floorY - 320, 'blade'));
+            this.spectralWraiths.push(new SpectralWraith(880, this.floorY - 320, 'staff'));
+            this.spectralWraiths.push(new SpectralWraith(1320, this.floorY - 240, 'blade'));
+
+            this.crates.push(new Crate(1280, this.floorY - 90 - 32));
+            this.crates.push(new Crate(1312, this.floorY - 90 - 32));
+            this.chests.push(new TreasureChest(1420, this.floorY - 90 - 36, 'berry_relic'));
+
+            particles.addFloatingText(80, this.floorY - 120, "MUNDO 5-2: CATACUMBAS DE CRISTAL", "#b642f5", 14, true);
+        } else if (levelNum === 29) {
+            // Nivel 29: El Abismo de los Espectros (Mundo 5-3)
+            this.levelWidth = 2600;
+            this.levelHeight = 750;
+            this.bonfire = null;
+            this.exitDoor = { x: 2450, y: this.floorY - 70 - 60, width: 40, height: 60 };
+
+            this.spectralPortals = [];
+            this.spectralWraiths = [];
+
+            // Plataformas fijas góticas muy separadas (requiere grappling hook / gancho)
+            this.platforms.push(new Platform(50, this.floorY - 70, 160, 22, 'stone'));
+            this.platforms.push(new Platform(380, this.floorY - 180, 140, 22, 'stone'));
+            this.platforms.push(new Platform(750, this.floorY - 240, 140, 22, 'stone'));
+            this.platforms.push(new Platform(1120, this.floorY - 180, 140, 22, 'stone'));
+            this.platforms.push(new Platform(1480, this.floorY - 240, 140, 22, 'stone'));
+            this.platforms.push(new Platform(1850, this.floorY - 180, 140, 22, 'stone'));
+
+            // Repisa final
+            this.platforms.push(new Platform(2220, this.floorY - 70, 320, 22, 'stone'));
+
+            // Tres espectros SpectralWraith patrullando el abismo
+            this.spectralWraiths.push(new SpectralWraith(500, this.floorY - 290, 'blade'));
+            this.spectralWraiths.push(new SpectralWraith(1200, this.floorY - 290, 'staff'));
+            this.spectralWraiths.push(new SpectralWraith(1900, this.floorY - 290, 'blade'));
+
+            this.crates.push(new Crate(2300, this.floorY - 70 - 32));
+            this.chests.push(new TreasureChest(2340, this.floorY - 70 - 36, 'storm_potion'));
+
+            this.loreTablets.push(new LoreTablet(100, this.floorY - 122, "Los espectros se alimentan de la luz.|Solo el acero sagrado puede disipar su esencia."));
+
+            particles.addFloatingText(80, this.floorY - 120, "MUNDO 5-3: EL ABISMO DE LOS ESPECTROS", "#b642f5", 14, true);
+        } else if (levelNum === 30) {
+            // Nivel 30: Torres Gemelas de Energía (Mundo 5-4)
+            this.levelWidth = 2600;
+            this.levelHeight = 2400; // Escalada vertical y laberinto de portales
+            this.bonfire = null;
+            this.exitDoor = { x: 1200, y: this.floorY - 25 - 60, width: 40, height: 60 };
+
+            this.spectralPortals = [];
+            this.spectralWraiths = [];
+
+            // Base
+            this.platforms.push(new Platform(50, this.floorY - 25, 450, 25, 'stone'));
+            this.platforms.push(new Platform(900, this.floorY - 25, 450, 25, 'stone'));
+
+            // Torre Izquierda - repisas
+            this.platforms.push(new Platform(150, this.floorY - 250, 160, 22, 'stone'));
+            this.platforms.push(new Platform(80, this.floorY - 500, 160, 22, 'stone'));
+            this.platforms.push(new Platform(150, this.floorY - 750, 160, 22, 'stone'));
+
+            // Torre Derecha - repisas
+            this.platforms.push(new Platform(1050, this.floorY - 250, 160, 22, 'stone'));
+            this.platforms.push(new Platform(1120, this.floorY - 500, 160, 22, 'stone'));
+            this.platforms.push(new Platform(1050, this.floorY - 750, 160, 22, 'stone'));
+            this.platforms.push(new Platform(560, this.floorY - 980, 280, 22, 'stone'));
+
+            // Cámaras pequeñas del laberinto espectral
+            this.platforms.push(new Platform(1510, this.floorY - 660, 430, 22, 'stone'));
+            this.platforms.push(new Platform(1540, this.floorY - 1060, 520, 22, 'stone'));
+            this.platforms.push(new Platform(2160, this.floorY - 1290, 150, 22, 'stone'));
+            this.platforms.push(new Platform(1580, this.floorY - 1880, 780, 24, 'stone'));
+
+            // Portales de cruce vertical cruzados
+            this.spectralPortals.push(new SpectralPortal(220, this.floorY - 90, 1100, this.floorY - 320, 'horizontal'));
+            this.spectralPortals.push(new SpectralPortal(1100, this.floorY - 320, 220, this.floorY - 90, 'horizontal'));
+
+            this.spectralPortals.push(new SpectralPortal(1080, this.floorY - 570, 120, this.floorY - 820, 'horizontal'));
+            this.spectralPortals.push(new SpectralPortal(120, this.floorY - 820, 1080, this.floorY - 570, 'horizontal'));
+
+            // Laberinto superior: cada puerta exige elegir el siguiente cuarto correcto
+            this.spectralPortals.push(new SpectralPortal(1158, this.floorY - 750 - 64, 1540, this.floorY - 660 - 64, 'horizontal'));
+            this.spectralPortals.push(new SpectralPortal(1540, this.floorY - 660 - 64, 1158, this.floorY - 750 - 64, 'horizontal'));
+
+            this.spectralPortals.push(new SpectralPortal(1880, this.floorY - 660 - 64, 1580, this.floorY - 1060 - 64, 'horizontal'));
+            this.spectralPortals.push(new SpectralPortal(1580, this.floorY - 1060 - 64, 1880, this.floorY - 660 - 64, 'horizontal'));
+
+            this.spectralPortals.push(new SpectralPortal(710, this.floorY - 980 - 64, 1760, this.floorY - 1060 - 64, 'horizontal'));
+            this.spectralPortals.push(new SpectralPortal(1760, this.floorY - 1060 - 64, 710, this.floorY - 980 - 64, 'horizontal'));
+
+            // Portal secreto: está alto y requiere gancho desde la segunda cámara
+            this.spectralPortals.push(new SpectralPortal(2210, this.floorY - 1290 - 64, 1660, this.floorY - 1880 - 64, 'horizontal'));
+            this.spectralPortals.push(new SpectralPortal(2220, this.floorY - 1880 - 64, 1120, this.floorY - 750 - 64, 'horizontal'));
+
+            // Enemigos
+            this.spectralWraiths.push(new SpectralWraith(250, this.floorY - 450, 'staff'));
+            this.spectralWraiths.push(new SpectralWraith(650, this.floorY - 520, 'blade'));
+            this.spectralWraiths.push(new SpectralWraith(1100, this.floorY - 650, 'staff'));
+            this.spectralWraiths.push(new SpectralWraith(1600, this.floorY - 730, 'blade'));
+            this.spectralWraiths.push(new SpectralWraith(1840, this.floorY - 735, 'staff'));
+            this.spectralWraiths.push(new SpectralWraith(1660, this.floorY - 1130, 'blade'));
+            this.spectralWraiths.push(new SpectralWraith(1950, this.floorY - 1140, 'staff'));
+
+            if (!this.player?.hasVoidKey) {
+                const voidWarden = new SpectralWraith(1940, this.floorY - 1880 - 70, 'blade');
+                voidWarden.isMiniBoss = true;
+                voidWarden.maxHp = 240;
+                voidWarden.hp = 240;
+                voidWarden.damage = 17;
+                voidWarden.width = 56;
+                voidWarden.height = 68;
+                voidWarden.speed = 1.55;
+                voidWarden.chaseRange = 760;
+                voidWarden.customDrop = 'void_key';
+                this.spectralWraiths.push(voidWarden);
+            }
+
+            this.crates.push(new Crate(950, this.floorY - 25 - 32));
+            this.chests.push(new TreasureChest(980, this.floorY - 25 - 36, 'storm_potion'));
+            this.chests.push(new TreasureChest(1620, this.floorY - 660 - 36, 'violet_berry'));
+            this.crates.push(new Crate(1590, this.floorY - 1060 - 32));
+            this.crates.push(new Crate(2020, this.floorY - 1060 - 32));
+            this.loreTablets.push(new LoreTablet(590, this.floorY - 1014, "Las puertas del vacío no siempre avanzan.|La llave duerme donde el gancho alcanza la sombra."));
+
+            particles.addFloatingText(80, this.floorY - 120, "MUNDO 5-4: TORRES GEMELAS DE ENERGÍA", "#b642f5", 14, true);
+        } else if (levelNum === 31) {
+            // Nivel 31: El Laberinto de los 6 Portales (Mundo 5-5)
+            this.levelWidth = 3800;
+            this.levelHeight = 750;
+            this.bonfire = null;
+            this.exitDoor = { x: 2600, y: this.floorY - 80 - 60, width: 40, height: 60 };
+
+            this.spectralPortals = [];
+            this.spectralWraiths = [];
+
+            // Repisas fijas
+            this.platforms.push(new Platform(50, this.floorY - 80, 200, 22, 'stone')); // Inicio
+            this.platforms.push(new Platform(500, this.floorY - 120, 180, 22, 'stone')); // Sala A
+            this.platforms.push(new Platform(1000, this.floorY - 200, 180, 22, 'stone')); // Sala B
+            this.platforms.push(new Platform(1500, this.floorY - 120, 180, 22, 'stone')); // Sala C
+            this.platforms.push(new Platform(2000, this.floorY - 200, 220, 22, 'stone')); // Sala Llave
+            this.platforms.push(new Platform(2500, this.floorY - 80, 250, 22, 'stone')); // Salida
+
+            // Red de portales laberíntica
+            this.spectralPortals.push(new SpectralPortal(180, this.floorY - 144, 1020, this.floorY - 264, 'horizontal'));
+            this.spectralPortals.push(new SpectralPortal(1020, this.floorY - 264, 180, this.floorY - 144, 'horizontal'));
+
+            this.spectralPortals.push(new SpectralPortal(600, this.floorY - 184, 1520, this.floorY - 184, 'horizontal'));
+            this.spectralPortals.push(new SpectralPortal(1520, this.floorY - 184, 600, this.floorY - 184, 'horizontal'));
+
+            this.spectralPortals.push(new SpectralPortal(1120, this.floorY - 264, 2050, this.floorY - 264, 'horizontal'));
+            this.spectralPortals.push(new SpectralPortal(2050, this.floorY - 264, 1120, this.floorY - 264, 'horizontal'));
+
+            // Enemigos
+            this.spectralWraiths.push(new SpectralWraith(580, this.floorY - 250, 'blade'));
+            this.spectralWraiths.push(new SpectralWraith(1580, this.floorY - 250, 'staff'));
+            this.spectralWraiths.push(new SpectralWraith(2100, this.floorY - 300, 'blade'));
+
+            // Cámara del cofre falso: castigo corto con escudo como recompensa.
+            this.platforms.push(new Platform(3180, this.floorY - 80, 520, 22, 'stone'));
+            this.spectralPortals.push(new SpectralPortal(3600, this.floorY - 144, 2520, this.floorY - 144, 'horizontal'));
+            this.spectralWraiths.push(new SpectralWraith(3280, this.floorY - 210, 'blade'));
+            this.spectralWraiths.push(new SpectralWraith(3500, this.floorY - 220, 'staff'));
+
+            // Cofre de recompensa con poción sagrada en la sala del final
+            this.chests.push(new TreasureChest(2080, this.floorY - 200 - 36, 'storm_potion'));
+            this.chests.push(new TreasureChest(520, this.floorY - 120 - 36, 'false_shield'));
+            this.chests.push(new TreasureChest(3440, this.floorY - 80 - 36, 'shield'));
+            this.crates.push(new Crate(2550, this.floorY - 80 - 32));
+
+            particles.addFloatingText(80, this.floorY - 120, "MUNDO 5-5: EL LABERINTO DE LOS PORTALES", "#b642f5", 14, true);
+        } else if (levelNum === 32) {
+            // Nivel 32: Puente de la Tormenta Espectral (Mundo 5-6)
+            this.levelWidth = 3200;
+            this.levelHeight = 750;
+            this.bonfire = {
+                x: 130,
+                y: this.floorY - 80 - 65,
+                width: 48,
+                height: 65,
+                lit: this.latestLitBonfire.level === 32 && this.latestLitBonfire.lit,
+                animTime: 0
+            };
+            this.exitDoor = { x: 3000, y: this.floorY - 80 - 60, width: 40, height: 60 };
+
+            this.spectralPortals = [];
+            this.spectralWraiths = [];
+
+            // Inicio y fin fijos
+            this.platforms.push(new Platform(50, this.floorY - 80, 220, 22, 'stone'));
+            this.platforms.push(new Platform(2920, this.floorY - 80, 240, 22, 'stone'));
+
+            // Puente largo de VoidPlatforms y CrumblingPlatforms
+            this.platforms.push(new VoidPlatform(300, this.floorY - 130, 140));
+            this.platforms.push(new CrumblingPlatform(480, this.floorY - 130, 120));
+            this.platforms.push(new VoidPlatform(640, this.floorY - 130, 140));
+            this.platforms.push(new CrumblingPlatform(820, this.floorY - 130, 120));
+            this.platforms.push(new VoidPlatform(980, this.floorY - 130, 140));
+            this.voidCrystals.push(new VoidCrystal(1185, this.floorY - 124, 520));
+
+            // Plataforma intermedia firme
+            this.platforms.push(new Platform(1160, this.floorY - 90, 250, 22, 'stone'));
+
+            this.platforms.push(new VoidPlatform(1450, this.floorY - 130, 140));
+            this.platforms.push(new CrumblingPlatform(1630, this.floorY - 130, 120));
+            this.platforms.push(new VoidPlatform(1790, this.floorY - 130, 140));
+            this.platforms.push(new CrumblingPlatform(1970, this.floorY - 130, 120));
+            this.platforms.push(new VoidPlatform(2130, this.floorY - 130, 140));
+            this.voidCrystals.push(new VoidCrystal(2335, this.floorY - 124, 520));
+
+            // Segunda plataforma firme
+            this.platforms.push(new Platform(2310, this.floorY - 90, 250, 22, 'stone'));
+
+            this.platforms.push(new VoidPlatform(2600, this.floorY - 140, 140));
+            this.platforms.push(new CrumblingPlatform(2780, this.floorY - 140, 120));
+
+            // Enemigos
+            this.spectralWraiths.push(new SpectralWraith(800, this.floorY - 260, 'blade'));
+            this.spectralWraiths.push(new SpectralWraith(1250, this.floorY - 300, 'staff'));
+            this.spectralWraiths.push(new SpectralWraith(1800, this.floorY - 260, 'blade'));
+            this.spectralWraiths.push(new SpectralWraith(2350, this.floorY - 300, 'staff'));
+
+            this.crates.push(new Crate(1200, this.floorY - 90 - 32));
+            this.chests.push(new TreasureChest(2350, this.floorY - 90 - 36, 'storm_potion'));
+
+            particles.addFloatingText(80, this.floorY - 120, "MUNDO 5-6: PUENTE DE LA TORMENTA ESPECTRAL", "#b642f5", 14, true);
+        } else if (levelNum === 33) {
+            // Nivel 33: Antesala del Reflejo (Mundo 5-7)
+            this.levelWidth = 1400;
+            this.levelHeight = 750;
+
+            // Hoguera de descanso gótica final antes del jefe
+            this.bonfire = {
+                x: 680,
+                y: this.floorY - 25 - 65,
+                width: 48,
+                height: 65,
+                lit: this.latestLitBonfire.level === 33 && this.latestLitBonfire.lit,
+                animTime: 0
+            };
+            this.exitDoor = { x: 1200, y: this.floorY - 25 - 60, width: 40, height: 60 };
+
+            this.spectralPortals = [];
+            this.spectralWraiths = [];
+
+            // Plataformas fijas de piedra
+            this.platforms.push(new Platform(50, this.floorY - 25, 1300, 25, 'stone'));
+
+            this.crates.push(new Crate(350, this.floorY - 25 - 32));
+            this.crates.push(new Crate(382, this.floorY - 25 - 32));
+
+            // La gran tablilla del lore del Doppelgänger
+            this.loreTablets.push(new LoreTablet(500, this.floorY - 52, "Mira profundamente al cristal.|En el abismo mas profundo, tu mayor enemigo eres tu mismo.|Tu reflejo imitara tus virtudes y tus pecados."));
+
+            this.domBossHud.classList.add('hidden');
+            particles.addFloatingText(80, this.floorY - 120, "MUNDO 5-7: ANTESALA DEL REFLEJO", "#b642f5", 14, true);
+        } else if (levelNum === 34) {
+            // Nivel 34: El Espejo del Alma (Mundo 5-8: JEFE FINAL)
+            this.levelWidth = 1400;
+            this.levelHeight = 750;
+            this.bonfire = {
+                x: 150,
+                y: this.floorY - 65,
+                width: 48,
+                height: 65,
+                lit: this.latestLitBonfire.level === 34 && this.litBonfires.includes(34),
+                animTime: 0
+            };
+            this.exitDoor = null; // Se abre la victoria al vencerlo!
+
+            this.spectralPortals = [];
+            this.spectralWraiths = [];
+
+            // Plataformas de energía espectral en la arena
+            this.platforms.push(new Platform(380, this.floorY - 160, 220, 22, 'stone'));
+            this.platforms.push(new Platform(800, this.floorY - 160, 220, 22, 'stone'));
+            this.platforms.push(new Platform(590, this.floorY - 300, 220, 22, 'stone'));
+
+            // Spawnea el Doppelgänger
+            this.boss = new DoppelgangerBoss(1000, this.floorY - 58);
+            this.domBossHud.classList.remove('hidden');
+
+            // Cambiar título del HUD del jefe
+            const nameLabel = document.getElementById('boss-name-label');
+            if (nameLabel) nameLabel.innerText = "TU PROPIO REFLEJO (DOPPELGÄNGER)";
+
+            particles.addFloatingText(80, this.floorY - 120, "MUNDO 5-8: EL ESPEJO DEL ALMA", "#b642f5", 14, true);
+        } else if (levelNum === 35) {
+            // Nivel 35: Nubes del Alba Negra (Mundo 6-1)
+            this.levelWidth = 2400;
+            this.levelHeight = 850;
+            this.bonfire = {
+                x: 120,
+                y: this.floorY - 95,
+                width: 48,
+                height: 65,
+                lit: this.latestLitBonfire.level === 35 && this.latestLitBonfire.lit,
+                animTime: 0
+            };
+            this.exitDoor = null;
+
+            this.platforms.push(new Platform(40, this.floorY - 30, 360, 24, 'stone'));
+            this.platforms.push(new Platform(520, this.floorY - 120, 220, 22, 'stone'));
+            this.platforms.push(new Platform(880, this.floorY - 210, 230, 22, 'stone'));
+            this.platforms.push(new Platform(1240, this.floorY - 130, 260, 22, 'stone'));
+            this.platforms.push(new Platform(1700, this.floorY - 250, 260, 22, 'stone'));
+            this.platforms.push(new Platform(2100, this.floorY - 160, 220, 22, 'stone'));
+
+            this.loreTablets.push(new LoreTablet(225, this.floorY - 82, "Ya se elimino uno de los 4 espiritus malignos|que se estan apoderando del mundo.|Pero el castillo blanco aun respira un aura negra."));
+            this.chests.push(new TreasureChest(920, this.floorY - 210 - 36, 'storm_potion'));
+
+            this.domBossHud.classList.add('hidden');
+            particles.addFloatingText(80, this.floorY - 140, "MUNDO 6-1: NUBES DEL ALBA NEGRA", "#ffffff", 14, true);
         }
 
         // Generar antorchas dinámicamente basadas en el ancho del nivel
@@ -3309,8 +4262,9 @@ class Game {
 
     respawnPlayer() {
         this.state = 'playing';
+        this.gameOverTriggered = false;
         this.domGameOver.classList.add('hidden');
-        
+
         // Resetear estadísticas del caballero excepto las acumuladas de cajas/monedas
         this.player.hp = this.player.maxHp;
         this.player.stamina = this.player.maxStamina;
@@ -3327,7 +4281,12 @@ class Game {
             // Reaparecer al lado de esa hoguera
             this.resetTransientStateForLevelStart();
             this.player.x = this.latestLitBonfire.x - 30;
-            this.player.y = this.floorY - this.player.height;
+            this.player.y = this.latestLitBonfire.y ?? (this.floorY - this.player.height);
+            if (this.isAbyssLevel() && this.player.y + this.player.height >= this.floorY - 2) {
+                const spawn = this.getSafeLevelStartPoint(this.latestLitBonfire.x || 80);
+                this.player.x = spawn.x;
+                this.player.y = spawn.y;
+            }
             this.resolvePlayerSpawnOverlap();
             this.cameraX = Math.max(0, Math.min(this.levelWidth - 960, this.player.x - 960 * 0.35));
             this.cameraY = Math.max(540 - this.levelHeight, Math.min(0, this.player.y - 540 * 0.42));
@@ -3347,9 +4306,9 @@ class Game {
         this.state = 'menu';
         this.isPaused = false;
         this.isShopOpen = false;
-        
+
         audio.stopMusic();
-        
+
         this.domPause.classList.add('hidden');
         this.domGameOver.classList.add('hidden');
         this.domVictory.classList.add('hidden');
@@ -3358,14 +4317,14 @@ class Game {
         this.domInventoryPopup.classList.add('hidden');
         if (this.domWorldTransition) this.domWorldTransition.classList.add('hidden');
         this.domHud.classList.add('hidden');
-        
+
         this.domStartMenu.classList.remove('hidden');
         this.refreshStartButton();
     }
 
     triggerGameOver() {
         this.state = 'gameover';
-        
+
         // Rellenar estadísticas de fin
         document.getElementById('stat-coins').innerText = this.player.coins;
         document.getElementById('stat-crates').innerText = this.player.statsCratesBroken;
@@ -3375,6 +4334,11 @@ class Game {
     }
 
     triggerVictory() {
+        if (this.level === 34) {
+            this.startWorld6Cinematic();
+            return;
+        }
+
         this.state = 'victory';
         audio.stopMusic();
         audio.playWin();
@@ -3383,7 +4347,9 @@ class Game {
         // Personalizar título según el nivel superado
         const victorySubtitle = document.querySelector('#victory-screen h2');
         if (victorySubtitle) {
-            victorySubtitle.innerText = '¡LA FORTALEZA CELESTIAL HA CAÍDO! ¡CAMPAÑA COMPLETADA!';
+            victorySubtitle.innerText = this.level === 34
+                ? '¡EL ESPEJO DEL ALMA SE HA ROTO! ¡EL VACÍO HA SIDO SUPERADO!'
+                : '¡LA FORTALEZA CELESTIAL HA CAÍDO! ¡CAMPAÑA COMPLETADA!';
             victorySubtitle.style.fontSize = '8px';
         }
 
@@ -3398,6 +4364,251 @@ class Game {
         document.getElementById('stat-blocked').innerText = Math.round(this.player.statsDamageBlocked);
 
         this.domVictory.classList.remove('hidden');
+    }
+
+    startWorld6Cinematic() {
+        this.state = 'world6_cinematic';
+        this.world6Cinematic = { frame: 0 };
+        this.activeLoreNote = null;
+        this.domHud.classList.add('hidden');
+        if (this.domBossHud) this.domBossHud.classList.add('hidden');
+        if (this.domVictory) this.domVictory.classList.add('hidden');
+        audio.stopMusic();
+        audio.playThunder();
+    }
+
+    finishWorld6Cinematic() {
+        if (this.state !== 'world6_cinematic') return;
+        if ((this.world6Cinematic?.frame || 0) < 540) return;
+
+        this.world6Cinematic = null;
+        this.state = 'playing';
+        this.domHud.classList.remove('hidden');
+        this.enterLevelAtStart(35, 120);
+        if (!this.litBonfires.includes(35)) this.litBonfires.push(35);
+        if (this.bonfire) {
+            const spawn = this.getBonfireRespawnPoint(this.bonfire.x);
+            this.latestLitBonfire = {
+                level: 35,
+                x: spawn.x,
+                y: spawn.y,
+                lit: true
+            };
+            this.bonfire.lit = true;
+        }
+        this.activeLoreNote = {
+            title: 'CARTA ENTRE LAS NUBES',
+            lines: [
+                'Ya se elimino uno de los 4 espiritus malignos',
+                'que se estan apoderando del mundo.',
+                'Pero a lo lejos, otro castillo respira oscuridad.'
+            ]
+        };
+        this.saveGame();
+        audio.startMusic();
+    }
+
+    drawWorld6Cinematic() {
+        const ctx = this.ctx;
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+        const data = this.world6Cinematic || { frame: 0 };
+        data.frame++;
+        this.world6Cinematic = data;
+        const t = data.frame;
+
+        ctx.save();
+        ctx.fillStyle = '#03020a';
+        ctx.fillRect(0, 0, w, h);
+
+        const chamberGrad = ctx.createLinearGradient(0, 0, 0, h);
+        chamberGrad.addColorStop(0, '#08020f');
+        chamberGrad.addColorStop(0.55, '#15051f');
+        chamberGrad.addColorStop(1, '#050208');
+        ctx.fillStyle = chamberGrad;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.fillStyle = '#1a1022';
+        ctx.fillRect(0, h - 92, w, 92);
+        ctx.strokeStyle = '#5d2a7a';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(0, h - 92, w, 92);
+
+        if (t > 120) {
+            const crack = Math.min(1, (t - 120) / 140);
+            ctx.strokeStyle = `rgba(217, 246, 255, ${0.35 + crack * 0.45})`;
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 10; i++) {
+                const startX = 120 + i * 78;
+                const length = 35 + crack * (70 + i * 6);
+                ctx.beginPath();
+                ctx.moveTo(startX, h - 88);
+                ctx.lineTo(startX + Math.sin(i * 2.1) * 22, h - 88 - length * 0.35);
+                ctx.lineTo(startX + Math.cos(i) * 42, h - 88 - length);
+                ctx.stroke();
+            }
+        }
+
+        const dgX = w / 2 - 120;
+        const dgY = h - 128;
+        const fall = Math.min(1, t / 140);
+        ctx.save();
+        ctx.translate(dgX, dgY + fall * 26);
+        ctx.rotate(fall * Math.PI * 0.38);
+        ctx.globalAlpha = t > 210 ? Math.max(0.2, 1 - (t - 210) / 130) : 1;
+        ctx.fillStyle = '#2b083d';
+        ctx.fillRect(-20, -55, 40, 55);
+        ctx.fillStyle = '#f2e7ff';
+        ctx.fillRect(-12, -72, 24, 18);
+        ctx.fillStyle = '#ff00ff';
+        ctx.fillRect(-5, -65, 10, 3);
+        ctx.strokeStyle = '#d9f6ff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(12, -28);
+        ctx.lineTo(38, -50);
+        ctx.stroke();
+        ctx.restore();
+
+        if (t > 210) {
+            const hole = Math.min(1, (t - 210) / 150);
+            const cx = w / 2;
+            const cy = h - 118;
+            const radius = 20 + hole * 145;
+            const grad = ctx.createRadialGradient(cx, cy, 5, cx, cy, radius);
+            grad.addColorStop(0, '#000000');
+            grad.addColorStop(0.42, 'rgba(0, 0, 0, 0.98)');
+            grad.addColorStop(0.72, 'rgba(92, 20, 130, 0.48)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 18; i++) {
+                const a = i * Math.PI * 2 / 18 + t * 0.025;
+                ctx.beginPath();
+                ctx.moveTo(cx + Math.cos(a) * (radius + 20), cy + Math.sin(a) * (radius + 20));
+                ctx.lineTo(cx + Math.cos(a + 0.18) * (radius * 0.45), cy + Math.sin(a + 0.18) * (radius * 0.45));
+                ctx.stroke();
+            }
+        }
+
+        if (t > 330) {
+            const portal = Math.min(1, (t - 330) / 110);
+            const cx = w / 2 + 190;
+            const cy = h - 210;
+            const glow = 38 + portal * 95;
+            const grad = ctx.createRadialGradient(cx, cy, 4, cx, cy, glow);
+            grad.addColorStop(0, '#ffffff');
+            grad.addColorStop(0.32, 'rgba(255, 255, 255, 0.92)');
+            grad.addColorStop(0.74, 'rgba(158, 232, 255, 0.32)');
+            grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, glow, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 26 + portal * 18, 0, Math.PI * 2);
+            ctx.stroke();
+
+            const jump = Math.min(1, Math.max(0, (t - 360) / 120));
+            const px = w / 2 - 36 + jump * 205;
+            const py = h - 135 - Math.sin(jump * Math.PI) * 105 - jump * 54;
+            ctx.fillStyle = '#cfd7e8';
+            ctx.fillRect(px - 11, py - 36, 22, 36);
+            ctx.fillStyle = '#f1d2aa';
+            ctx.fillRect(px - 8, py - 49, 16, 13);
+            ctx.strokeStyle = '#d9f6ff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(px + 10, py - 24);
+            ctx.lineTo(px + 28, py - 42);
+            ctx.stroke();
+        }
+
+        if (t > 470) {
+            const sky = Math.min(1, (t - 470) / 100);
+            ctx.globalAlpha = sky;
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+            skyGrad.addColorStop(0, '#dff6ff');
+            skyGrad.addColorStop(0.55, '#8ec7ff');
+            skyGrad.addColorStop(1, '#ffffff');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, w, h);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            for (let i = 0; i < 9; i++) {
+                const x = 50 + i * 118 + Math.sin(t * 0.01 + i) * 12;
+                const y = 260 + Math.sin(i * 1.7) * 55;
+                ctx.beginPath();
+                ctx.ellipse(x, y, 70, 24, 0, 0, Math.PI * 2);
+                ctx.ellipse(x + 42, y - 8, 52, 20, 0, 0, Math.PI * 2);
+                ctx.ellipse(x - 44, y + 4, 44, 18, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            const castleX = w - 250;
+            const castleY = 155;
+            ctx.shadowBlur = 22;
+            ctx.shadowColor = '#08000f';
+            ctx.fillStyle = '#f8fbff';
+            ctx.fillRect(castleX, castleY, 128, 132);
+            ctx.fillRect(castleX + 22, castleY - 58, 32, 58);
+            ctx.fillRect(castleX + 82, castleY - 82, 38, 82);
+            ctx.beginPath();
+            ctx.moveTo(castleX + 22, castleY - 58);
+            ctx.lineTo(castleX + 38, castleY - 94);
+            ctx.lineTo(castleX + 54, castleY - 58);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(castleX + 82, castleY - 82);
+            ctx.lineTo(castleX + 101, castleY - 126);
+            ctx.lineTo(castleX + 120, castleY - 82);
+            ctx.closePath();
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.lineWidth = 5;
+            ctx.strokeRect(castleX, castleY, 128, 132);
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
+            ctx.beginPath();
+            ctx.arc(castleX + 64, castleY + 40, 170, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+
+        const caption = t < 170
+            ? 'El reflejo cae... pero el mundo no respira en paz.'
+            : (t < 330
+                ? 'El salon se abre como una herida del vacio.'
+                : (t < 510
+                    ? 'Una luz responde desde algun lugar imposible.'
+                    : 'MUNDO 6: LAS NUBES DEL ALBA NEGRA'));
+        ctx.globalAlpha = 0.92;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.62)';
+        ctx.fillRect(70, h - 74, w - 140, 44);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(70, h - 74, w - 140, 44);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '10px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(caption, w / 2, h - 47);
+
+        if (t >= 540) {
+            ctx.fillStyle = Math.floor(t / 24) % 2 === 0 ? '#ffffff' : '#9ee8ff';
+            ctx.font = '9px "Press Start 2P", monospace';
+            ctx.fillText("PULSA E PARA ENTRAR AL MUNDO 6-1", w / 2, h - 96);
+        }
+
+        ctx.restore();
     }
 
     // Bucle Principal del Juego (Game Loop)
@@ -3428,8 +4639,57 @@ class Game {
         // 2. Actualizar Jugador
         this.player.update(this.input);
         this.platforms.forEach(plat => {
-            if (typeof plat.update === 'function') plat.update();
+            if (typeof plat.update === 'function') plat.update(this.player);
         });
+        this.voidCrystals.forEach(crystal => crystal.update(this));
+
+        // Revelación de VoidPlatforms y Teletransporte de Portales Espectrales
+        if (this.platforms.length > 0) {
+            this.platforms.forEach(plat => {
+                if (plat instanceof VoidPlatform) {
+                    if (this.player.isBlocking) {
+                        const dx = (this.player.x + this.player.width/2) - (plat.x + plat.width/2);
+                        const dy = (this.player.y + this.player.height/2) - (plat.y + plat.height/2);
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < 150) {
+                            if (this.level === 28) {
+                                this.platforms.forEach(other => {
+                                    if (other instanceof VoidPlatform) other.reveal(540);
+                                });
+                            } else {
+                                plat.reveal();
+                            }
+                        }
+                    }
+                    if (this.level === 31 && this.lightningFlashDuration > 0) {
+                        plat.reveal();
+                    }
+                }
+            });
+        }
+
+        if (this.arrows.length > 0) {
+            this.arrows.forEach(arr => {
+                this.platforms.forEach(plat => {
+                    if (plat instanceof VoidPlatform) {
+                        const overlaps = arr.x < plat.x + plat.width &&
+                                         arr.x + arr.width > plat.x &&
+                                         arr.y < plat.y + plat.height &&
+                                         arr.y + arr.height > plat.y;
+                        if (overlaps) {
+                            plat.reveal();
+                        }
+                    }
+                });
+            });
+        }
+        this.syncWorldFiveTwoVoidPlatforms();
+
+        if (this.spectralPortals && this.spectralPortals.length > 0) {
+            this.spectralPortals.forEach(portal => {
+                portal.update();
+            });
+        }
 
         // Pared invisible/visible que evita caminar al área técnica de la sala secreta desde el suelo.
         if (this.level === 22 && this.world4MainBoundaryWall) {
@@ -3453,6 +4713,46 @@ class Game {
                 this.player.vx = 0;
                 this.player.vy = 0;
                 particles.addFloatingText(this.player.x + this.player.width / 2, this.player.y - 20, "REGRESO AL BORDE", "#9ee8ff", 9, false);
+            }
+        }
+
+        // --- Actualizar Elevador del Descenso (Nivel 26) ---
+        if (this.level === 26 && this.world5TransitionElevator) {
+            const elevator = this.world5TransitionElevator;
+
+            if (elevator.moving) {
+                // Sonido rítmico de cadenas chirriantes
+                if (Math.random() < 0.05) {
+                    audio.playElevator();
+                }
+
+                // Desplazamiento del elevador hacia abajo
+                elevator.y += 2.0;
+            }
+
+            // Plataforma sólida y arrastre del Caballero si está encima
+            const playerBottom = this.player.y + this.player.height;
+            const horizontalOverlap = this.player.x + this.player.width > elevator.x - 5 && this.player.x < elevator.x + elevator.width + 5;
+            const standingOnElevator = horizontalOverlap &&
+                playerBottom >= elevator.y - 12 &&
+                playerBottom <= elevator.y + elevator.height + 20 &&
+                this.player.vy >= 0;
+
+            if (standingOnElevator) {
+                this.player.y = elevator.y - this.player.height;
+                this.player.vy = 0;
+                this.player.isGrounded = true;
+            }
+
+            // Detener el elevador al llegar al final
+            if (elevator.moving && elevator.y >= elevator.targetY) {
+                elevator.y = elevator.targetY;
+                elevator.reachedBottom = true;
+                elevator.moving = false;
+                audio.playCrateBreak(); // Clank metálico al encajar al fondo
+                this.shakeTimer = 18;
+                this.shakeIntensity = 2.5;
+                particles.addFloatingText(elevator.x + elevator.width/2, elevator.y - 15, "¡DESCENSO COMPLETADO!", "#9ee8ff", 11, true);
             }
         }
 
@@ -3485,6 +4785,7 @@ class Game {
         });
 
         this.challengeDoors.forEach(door => door.update(this));
+        this.updateWorld4MoonRace();
 
         // Sacudida de pantalla (Screen Shake) gatillada por jugador
         if (this.player.shouldTriggerShake) {
@@ -3495,7 +4796,7 @@ class Game {
 
         // Límites de nivel para el jugador
         if (this.player.x < 0) this.player.x = 0;
-        
+
         // Límites invisibles para la habitación secreta en el nivel 8 (2-3)
         if (this.level === 8) {
             // Zona principal: no pasar de x = 2560 si se está en la zona principal
@@ -3529,8 +4830,16 @@ class Game {
             }
         }
 
-        // Colisión con suelo firme
-        if (this.player.y + this.player.height >= this.floorY) {
+        // Colisión con suelo firme. En el Mundo 5 el suelo es abismo: solo salvan las plataformas.
+        if (this.isAbyssLevel()) {
+            if (this.player.y > this.floorY + 120 && this.player.hp > 0) {
+                this.player.hp = 0;
+                this.player.vx = 0;
+                this.player.vy = 0;
+                audio.playDeath();
+                particles.addFloatingText(this.player.x + this.player.width / 2, this.floorY - 45, "ABISMO", "#b642f5", 13, true);
+            }
+        } else if (this.player.y + this.player.height >= this.floorY) {
             this.player.y = this.floorY - this.player.height;
             this.player.vy = 0;
             this.player.isGrounded = true;
@@ -3539,8 +4848,7 @@ class Game {
         // --- Colisiones con Plataformas Flotantes ---
         if (this.platforms.length > 0) {
             this.platforms.forEach(plat => {
-                if (plat.active === false) return;
-                // Si el jugador está bajando de la plataforma, ignorar colisiones
+                if (plat.hidden || plat.active === false || (plat.visibleTimer !== undefined && plat.visibleTimer === 0)) return;
                 if (this.player.platformDropTimer > 0) return;
 
                 const playerBottom = this.player.y + this.player.height;
@@ -3549,13 +4857,12 @@ class Game {
                     playerBottom >= plat.y &&
                     playerBottom - this.player.vy <= plat.y + 20 &&
                     this.player.vy >= 0) {
-                    
-                    // Si el jugador presiona agacharse/abajo mientras está en cualquier parte de la plataforma, bajar de ella
+
                     if (this.input.down) {
-                        this.player.platformDropTimer = 15; // Ignorar colisión por 15 frames para bajar libremente
-                        this.player.y += 12; // Mover al caballero por debajo del límite de la plataforma
+                        this.player.platformDropTimer = 15;
+                        this.player.y += 12;
                         this.player.isGrounded = false;
-                        this.player.vy = 2.0; // Impulso inicial de caída
+                        this.player.vy = 2.0;
                         return;
                     }
 
@@ -3563,45 +4870,44 @@ class Game {
                     this.player.vy = 0;
                     this.player.isGrounded = true;
                     if (plat instanceof CrumblingPlatform) plat.stepOn();
+                    if (plat instanceof StormElevatorPlatform) plat.startMoving();
                 }
-            });
-
-            // Colisiones de enemigos y arqueros con plataformas
-            const checkEntityPlatformCollision = (entity) => {
-                this.platforms.forEach(plat => {
-                    if (plat.active === false) return;
-                    const bottom = entity.y + entity.height;
-                    if (entity.x + entity.width > plat.x &&
-                        entity.x < plat.x + plat.width &&
-                        bottom >= plat.y &&
-                        bottom - entity.vy <= plat.y + 20 &&
-                        entity.vy >= 0) {
-                        entity.y = plat.y - entity.height;
-                        entity.vy = 0;
-                        
-                        if (entity instanceof SkeletonMinion) {
-                            if (entity.x < plat.x || entity.x + entity.width > plat.x + plat.width) {
-                                entity.vx = -entity.vx;
-                            }
-                        }
-                    }
-                });
-            };
-
-            this.skeletons.forEach(s => checkEntityPlatformCollision(s));
-            this.archers.forEach(a => checkEntityPlatformCollision(a));
-            this.crates.forEach(c => {
-            // Permitir que las cajas se asienten en plataformas
-                this.platforms.forEach(plat => {
-                    if (plat.active === false) return;
-                    const bottom = c.y + c.height;
-                    if (c.x + c.width > plat.x && c.x < plat.x + plat.width && bottom >= plat.y && bottom <= plat.y + 10) {
-                        c.y = plat.y - c.height;
-                    }
-                });
             });
         }
 
+        // Colisiones de enemigos y arqueros con plataformas
+        const checkEntityPlatformCollision = (entity) => {
+            this.platforms.forEach(plat => {
+                if (plat.hidden || plat.active === false || (plat.visibleTimer !== undefined && plat.visibleTimer === 0)) return;
+                const bottom = entity.y + entity.height;
+                if (entity.x + entity.width > plat.x &&
+                    entity.x < plat.x + plat.width &&
+                    bottom >= plat.y &&
+                    bottom - entity.vy <= plat.y + 20 &&
+                    entity.vy >= 0) {
+                    entity.y = plat.y - entity.height;
+                    entity.vy = 0;
+
+                    if (entity instanceof SkeletonMinion) {
+                        if (entity.x < plat.x || entity.x + entity.width > plat.x + plat.width) {
+                            entity.vx = -entity.vx;
+                        }
+                    }
+                }
+            });
+        };
+
+        this.skeletons.forEach(s => checkEntityPlatformCollision(s));
+        this.archers.forEach(a => checkEntityPlatformCollision(a));
+        this.crates.forEach(c => {
+            this.platforms.forEach(plat => {
+                if (plat.hidden || plat.active === false || (plat.visibleTimer !== undefined && plat.visibleTimer === 0)) return;
+                const bottom = c.y + c.height;
+                if (c.x + c.width > plat.x && c.x < plat.x + plat.width && bottom >= plat.y && bottom <= plat.y + 10) {
+                    c.y = plat.y - c.height;
+                }
+            });
+        });
         // 3. Actualizar Enemigos y Obstáculos del Camino (Uncondicional)
         // Actualizar Cuchillas
         this.blades.forEach(b => {
@@ -3621,10 +4927,20 @@ class Game {
             }
         });
 
+        // Actualizar Espectros (SpectralWraith)
+        if (this.spectralWraiths && this.spectralWraiths.length > 0) {
+            this.spectralWraiths.forEach(w => {
+                w.update(this.player, this);
+                if (w.active && this.checkAABBCollision(this.player, w)) {
+                    this.player.takeDamage(w.damage, (this.player.x + this.player.width/2 > w.x + w.width/2 ? 3.0 : -3.0), w.x + w.width/2);
+                }
+            });
+        }
+
         // Actualizar Esqueletos pequeños y Goblins
         this.skeletons.forEach(s => {
             s.update(this.player);
-            
+
             // Colisión con suelo
             if (s.y + s.height >= this.floorY) {
                 s.y = this.floorY - s.height;
@@ -3639,6 +4955,31 @@ class Game {
             // Colisión con el jugador
             if (s.active && this.checkAABBCollision(this.player, s)) {
                 this.player.takeDamage(s.damage, (this.player.x + this.player.width/2 > s.x + s.width/2 ? 4.5 : -4.5), s.x + s.width/2);
+            }
+
+            if (s.active && s.specialAttack === 'ash_greatsword') {
+                s.specialTimer = (s.specialTimer ?? 120) - 1;
+                const dx = (this.player.x + this.player.width / 2) - (s.x + s.width / 2);
+                const dy = Math.abs((this.player.y + this.player.height / 2) - (s.y + s.height / 2));
+                const dir = dx >= 0 ? 1 : -1;
+                if (Math.abs(dx) < 330 && dy < 130 && s.specialTimer === 42) {
+                    s.vx = dir * 3.2;
+                    particles.spawnSparks(s.x + s.width / 2, s.y + 12, 10, 0);
+                    particles.addFloatingText(s.x + s.width / 2, s.y - 30, 'ESPADÓN', '#ffcc66', 10, true);
+                    audio.playSwordSwing();
+                }
+                if (Math.abs(dx) < 185 && dy < 105 && s.specialTimer === 18) {
+                    audio.playCrateBreak();
+                    this.shakeTimer = Math.max(this.shakeTimer, 14);
+                    this.shakeIntensity = Math.max(this.shakeIntensity, 4);
+                    for (let p = 0; p < 10; p++) {
+                        particles.spawnFire(s.x + s.width / 2 + dir * (20 + p * 8), s.y + s.height - 8, 0.9);
+                    }
+                    this.player.takeDamage(12, dir * 5.0, s.x + s.width / 2);
+                }
+                if (s.specialTimer <= 0) {
+                    s.specialTimer = 135;
+                }
             }
 
             if (s.active && s.eliteType === 'storm' && this.gameTime % 120 === 0) {
@@ -3656,7 +4997,7 @@ class Game {
             mb.update(this.player, this.floorY, this.arrows);
 
             this.platforms.forEach(plat => {
-                if (plat.active === false) return;
+                if (plat.hidden || plat.active === false) return;
                 const bottom = mb.y + mb.height;
                 if (mb.x + mb.width > plat.x &&
                     mb.x < plat.x + plat.width &&
@@ -3684,7 +5025,7 @@ class Game {
             if (this.player.hp > 0 && this.checkAABBCollision(this.player, sp)) {
                 // Si está rodando, es invulnerable a los picos
                 if (this.player.isRolling) return;
-                
+
                 this.player.takeDamage(sp.damage, (this.player.x + this.player.width/2 > sp.x + sp.width/2 ? 4.0 : -4.0), sp.x + sp.width/2);
             }
         });
@@ -3699,6 +5040,7 @@ class Game {
         // Proximidad interactiva general
         let nearInteractive = false;
         let interactiveText = "";
+        let loreNearby = false;
 
         if (this.level === 22 && this.world4SecretGate?.visible) {
             const door = this.world4SecretGate;
@@ -3725,6 +5067,7 @@ class Game {
             const distY = Math.abs((this.player.y + this.player.height / 2) - (tablet.y + tablet.height / 2));
             if (distX < 70 && distY < 80) {
                 nearInteractive = true;
+                loreNearby = true;
                 interactiveText = "📜 LEER INSCRIPCIÓN (PULSA 'E') 📜";
                 break;
             }
@@ -3752,6 +5095,31 @@ class Game {
             }
         }
 
+        if (this.level === 23 && this.world4MoonRace) {
+            const race = this.world4MoonRace;
+            const playerCX = this.player.x + this.player.width / 2;
+            const playerCY = this.player.y + this.player.height / 2;
+
+            if (race.active && race.finishButton?.visible) {
+                const button = race.finishButton;
+                const distX = Math.abs(playerCX - (button.x + button.width / 2));
+                const distY = Math.abs(playerCY - (button.y + button.height / 2));
+                if (distX < 70 && distY < 85) {
+                    nearInteractive = true;
+                    interactiveText = "🌙 TERMINAR CARRERA LUNAR (PULSA 'E') 🌙";
+                }
+            }
+
+            if (!race.completed && !race.active) {
+                const distX = Math.abs(playerCX - (race.x + race.width / 2));
+                const distY = Math.abs(playerCY - (race.y + race.height / 2));
+                if (distX < 82 && distY < 100) {
+                    nearInteractive = true;
+                    interactiveText = race.failed ? "🌙 REINICIAR CARRERA LUNAR (PULSA 'E') 🌙" : "🌙 INICIAR CARRERA LUNAR (PULSA 'E') 🌙";
+                }
+            }
+        }
+
         for (const door of this.challengeDoors) {
             if (door.opened) continue;
             const distX = Math.abs((this.player.x + this.player.width / 2) - (door.x + door.width / 2));
@@ -3772,7 +5140,7 @@ class Game {
         // 1. Proximidad a los Cofres
         if (this.chests) {
             this.chests.forEach(chest => {
-                if (!chest.opened) {
+                if (!chest.hidden && !chest.opened) {
                     const distX = Math.abs((this.player.x + this.player.width/2) - (chest.x + chest.width/2));
                     const distY = Math.abs(this.player.y - chest.y);
                     if (distX < 75 && distY < 60) {
@@ -3813,7 +5181,7 @@ class Game {
         }
 
         // 3. Proximidad a puertas de salida
-        if (this.exitDoor) {
+        if (this.exitDoor && !loreNearby) {
             const distX = Math.abs((this.player.x + this.player.width/2) - (this.exitDoor.x + this.exitDoor.width/2));
             const distY = Math.abs((this.player.y + this.player.height/2) - (this.exitDoor.y + this.exitDoor.height/2));
             if (distX < 80 && distY < 95) {
@@ -3824,6 +5192,14 @@ class Game {
                     interactiveText = "🚪 VIAJAR AL MUNDO 2 (PULSA 'E') 🚪";
                 } else if (this.level === 11) {
                     interactiveText = "🚪 VIAJAR AL MUNDO 3 (PULSA 'E') 🚪";
+                } else if (this.level === 26) {
+                    interactiveText = "🚪 ENTRAR AL MUNDO 5 (PULSA 'E') 🚪";
+                } else if (this.level === 30 && !this.player.hasVoidKey) {
+                    interactiveText = "🔒 SALIDA SELLADA: FALTA LA LLAVE DEL VACÍO 🔒";
+                } else if (this.level >= 27 && this.level <= 33) {
+                    interactiveText = `🚪 AVANZAR AL MUNDO 5-${this.level - 25} (PULSA 'E') 🚪`;
+                } else if (this.level >= 19 && this.level <= 25) {
+                    interactiveText = `🚪 AVANZAR AL MUNDO 4-${this.level - 17} (PULSA 'E') 🚪`;
                 } else if (this.level >= 12) {
                     interactiveText = `🚪 AVANZAR AL MUNDO 3-${this.level - 10} (PULSA 'E') 🚪`;
                 } else {
@@ -3843,7 +5219,7 @@ class Game {
                 Math.pow(playerCX - bonfireCX, 2) +
                 Math.pow(playerCY - bonfireCY, 2)
             );
-            
+
             if (distToHoguera < 90) {
                 nearInteractive = true;
                 interactiveText = "🔥 ABRIR TIENDA / DESCANSAR (PULSA 'E') 🔥";
@@ -3851,15 +5227,16 @@ class Game {
                 // Si pasamos cerca y no está encendida, se enciende por primera vez
                 if (!this.bonfire.lit) {
                     this.bonfire.lit = true;
+                    const bonfireSpawn = this.getBonfireRespawnPoint(this.bonfire.x);
                     this.latestLitBonfire.level = this.level;
-                    this.latestLitBonfire.x = this.bonfire.x;
-                    this.latestLitBonfire.y = this.floorY - this.player.height;
+                    this.latestLitBonfire.x = bonfireSpawn.x;
+                    this.latestLitBonfire.y = bonfireSpawn.y;
                     this.latestLitBonfire.lit = true;
-                    
+
                     if (!this.litBonfires.includes(this.level)) {
                         this.litBonfires.push(this.level);
                     }
-                    
+
                     this.saveGame();
 
                     audio.playBonfire();
@@ -3925,9 +5302,15 @@ class Game {
             });
 
             // Esqueletos Arqueros
+            const archerViewport = {
+                x: this.cameraX,
+                y: this.cameraY,
+                width: this.canvas.width,
+                height: this.canvas.height
+            };
             this.archers.forEach(a => {
-                a.update(this.player, this.arrows);
-                
+                a.update(this.player, this.arrows, archerViewport);
+
                 // Colisión cuerpo a cuerpo con el jugador
                 if (a.active && this.checkAABBCollision(this.player, a)) {
                     this.player.takeDamage(a.damage, (this.player.x + this.player.width/2 > a.x + a.width/2 ? 3.0 : -3.0), a.x + a.width/2);
@@ -3937,11 +5320,11 @@ class Game {
                     particles.spawnSparks(a.x + a.width / 2, a.y + a.height / 2, 8, 0);
                     a.damage = Math.max(a.damage, 14);
                 }
-                
+
                 // Colisión con plataformas o suelo
                 let onPlatform = false;
                 for (let plat of this.platforms) {
-                    if (plat.active === false) continue;
+                    if (plat.hidden || plat.active === false) continue;
                     if (a.vy >= 0 &&
                         a.x + a.width > plat.x &&
                         a.x < plat.x + plat.width &&
@@ -3968,7 +5351,7 @@ class Game {
                 if (arrow.active && this.checkAABBCollision(this.player, arrow)) {
                     // Defensa activa con Escudo (Dirección de mira correcta)
                     const isFacingArrow = (arrow.vx > 0 && this.player.facing === -1) || (arrow.vx < 0 && this.player.facing === 1);
-                    
+
                     if (this.player.isBlocking && isFacingArrow) {
                         this.player.takeDamage(arrow.damage, 0, arrow.x);
                         arrow.active = false;
@@ -3981,7 +5364,7 @@ class Game {
 
                 // Destruir al chocar con plataformas sólidas
                 for (let plat of this.platforms) {
-                    if (plat.active === false) continue;
+                    if (plat.hidden || plat.active === false) continue;
                     if (arrow.active &&
                         arrow.x > plat.x &&
                         arrow.x < plat.x + plat.width &&
@@ -4008,6 +5391,47 @@ class Game {
             }
         }
 
+        // 4.1 Actualizar DoppelgangerBoss (Nivel 34: Final de Mundo 5)
+        if (this.level === 34 && this.boss) {
+            this.boss.update(this.player, 0, this.levelWidth, this.floorY, this);
+
+            if (this.boss.shouldTriggerShake) {
+                this.shakeTimer = 22;
+                this.shakeIntensity = 8;
+                this.boss.shouldTriggerShake = false;
+                this.freezeTimer = 3;
+            }
+
+            // Daño de cuerpo a cuerpo solo cuando NO está atacando (el slash aplica el daño propio)
+            if (this.boss.hp > 0 && this.boss.state !== 'dead' && this.boss.state !== 'slash' &&
+                this.player.invincibleTimer <= 0 && this.checkAABBCollision(this.player, this.boss)) {
+                this.player.takeDamage(8, (this.player.x + this.player.width/2 > this.boss.x + this.boss.width/2 ? 3.5 : -3.5), this.boss.x + this.boss.width/2);
+            }
+            const phaseTwin = this.boss.phaseTwin;
+            if (phaseTwin && phaseTwin.hp > 0 && phaseTwin.state !== 'dead' && phaseTwin.state !== 'slash' &&
+                this.player.invincibleTimer <= 0 && this.checkAABBCollision(this.player, phaseTwin)) {
+                this.player.takeDamage(6, (this.player.x + this.player.width/2 > phaseTwin.x + phaseTwin.width/2 ? 3.0 : -3.0), phaseTwin.x + phaseTwin.width/2);
+            }
+
+            if (this.boss.voidRocks) {
+                this.boss.voidRocks.forEach(rock => {
+                    if (rock.active && this.checkAABBCollision(this.player, rock)) {
+                        this.player.takeDamage(rock.damage, (this.player.x + this.player.width / 2 > rock.x + rock.width / 2 ? 3.5 : -3.5), rock.x + rock.width / 2);
+                        rock.active = false;
+                        particles.spawnSparks(rock.x + rock.width / 2, rock.y + rock.height / 2, 10, 0);
+                    }
+                });
+            }
+
+            const twinDefeated = !this.boss.phaseTwin || this.boss.phaseTwin.state === 'dead';
+            if (this.boss.hp <= 0 && this.boss.state === 'dead' && this.boss.vy === 0 && twinDefeated) {
+                this.triggerVictory();
+            }
+
+            // Actualizar HUD del jefe
+            this.updateBossHud();
+        }
+
         // 4. Actualizar el Jefe Final (Niveles 5, 11, 18 y 25)
         if ((this.level === 5 || this.level === 11 || this.level === 18 || this.level === 25) && this.boss) {
             this.boss.update(this.player, 0, this.levelWidth, this.floorY);
@@ -4022,14 +5446,15 @@ class Game {
 
             // Colisión directa del cuerpo del jefe
             if (this.boss.hp > 0 && this.checkAABBCollision(this.player, this.boss)) {
-                this.player.takeDamage(12, (this.player.x + this.player.width/2 > this.boss.x + this.boss.width/2 ? 5.0 : -5.0), this.boss.x + this.boss.width/2);
+                const contactDamage = this.level === 25 ? (this.boss.phase === 2 ? 18 : 15) : 12;
+                this.player.takeDamage(contactDamage, (this.player.x + this.player.width/2 > this.boss.x + this.boss.width/2 ? 5.0 : -5.0), this.boss.x + this.boss.width/2);
             }
 
             // Actualizar proyectiles del jefe
             for (let i = this.boss.spawnedProjectiles.length - 1; i >= 0; i--) {
                 const proj = this.boss.spawnedProjectiles[i];
                 proj.update();
-                
+
                 // Colisión con jugador
                 if (proj.active && this.checkAABBCollision(this.player, proj)) {
                     this.player.takeDamage(proj.damage, (this.player.x + this.player.width/2 > proj.x + proj.width/2 ? 3.5 : -3.5), proj.x + proj.width/2);
@@ -4060,10 +5485,10 @@ class Game {
             // Si el jefe es derrotado
             if (this.boss.hp <= 0 && this.boss.state === 'dead' && this.boss.vy === 0) {
                 audio.playWin(); // Sonido de victoria retro
-                
+
                 if (this.level === 5) {
                     this.bossDefeated = true; // Marcar jefe 1 como derrotado
-                    
+
                     // Spawnear la hoguera y el portal hacia el Mundo 2!
                     this.bonfire = {
                         x: 480,
@@ -4079,19 +5504,20 @@ class Game {
                         width: 40,
                         height: 60
                     };
-                    
+
                     // Spawnear cofre con la espada de fuego en la arena
                     this.chests.push(new TreasureChest(340, this.floorY - 30, 'legendary_sword'));
-                    
+
                     // Spawnear la moneda gris de daño (moneda especial)
                     this.lootItems.push(new LootItem(480 + 24, this.floorY - 50, 'grey_coin'));
-                    
+                    this.spawnBossCoins(10, 480 + 24, this.floorY - 45);
+
                     particles.spawnCollectGlow(480 + 24, 380 + 40, '#ffd700', 30);
                     particles.spawnCollectGlow(820 + 20, this.floorY - 30, '#ffd700', 30);
                     particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 30, "¡REY ESQUELETO DESTRUIDO!", "#ffd700", 13, true);
                 } else if (this.level === 11) {
                     this.boss2Defeated = true; // Marcar jefe 2 como derrotado
-                    
+
                     // Spawnear la hoguera y el portal hacia el Mundo 3!
                     this.bonfire = {
                         x: 480,
@@ -4107,16 +5533,17 @@ class Game {
                         width: 40,
                         height: 60
                     };
-                    
+
                     // Spawnear el frasco alquímico de mejora de poción (en lugar del alma gris)
                     this.lootItems.push(new LootItem(480 + 24, this.floorY - 50, 'flask'));
-                    
+                    this.spawnBossCoins(15, 480 + 24, this.floorY - 45);
+
                     particles.spawnCollectGlow(480 + 24, 380 + 40, '#00ffff', 30);
                     particles.spawnCollectGlow(820 + 20, this.floorY - 30, '#00ff66', 30);
                     particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 30, "¡DEMONIO ÍGNEO DESTRUIDO!", "#ff2200", 13, true);
                 } else if (this.level === 18) {
                     this.boss3Defeated = true; // Marcar jefe 3 como derrotado
-                    
+
                     // Spawnear la hoguera y portal hacia el Mundo 4
                     this.bonfire = {
                         x: 480,
@@ -4132,16 +5559,17 @@ class Game {
                         width: 40,
                         height: 60
                     };
-                    
+
                     // Spawnear la moneda gris de daño final (Alma Gris)
                     this.lootItems.push(new LootItem(480 + 24, this.floorY - 50, 'grey_coin'));
-                    
+                    this.spawnBossCoins(20, 480 + 24, this.floorY - 45);
+
                     particles.spawnCollectGlow(480 + 24, 380 + 40, '#b0b0b0', 30);
                     particles.spawnCollectGlow(820 + 20, this.floorY - 30, '#9ee8ff', 30);
                     particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 30, "¡DUENDE GIGANTE DESTRUIDO!", "#00ff66", 13, true);
                 } else if (this.level === 25) {
                     this.boss4Defeated = true; // Marcar jefe 4 como derrotado
-                    
+
                     this.bonfire = {
                         x: 220,
                         y: this.floorY - 65,
@@ -4156,14 +5584,15 @@ class Game {
                         width: 40,
                         height: 60
                     };
-                    
+
                     this.lootItems.push(new LootItem(500, this.floorY - 50, 'storm_sword'));
-                    
+                    this.spawnBossCoins(20, 500, this.floorY - 45);
+
                     particles.spawnCollectGlow(220 + 24, this.floorY - 25, '#9ee8ff', 30);
                     particles.spawnCollectGlow(1640 + 20, this.floorY - 30, '#ffffff', 34);
                     particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 30, "¡TRONO DE LA TORMENTA PURIFICADO!", "#9ee8ff", 12, true);
                 }
-                
+
                 this.boss = null; // Detener bucle de boss
                 this.domBossHud.classList.add('hidden'); // Ocultar HUD del jefe
                 this.saveGame();
@@ -4183,7 +5612,7 @@ class Game {
                 // Determinar lado de colisión
                 const pBottom = this.player.y + this.player.height;
                 const cBottom = c.y + c.height;
-                
+
                 // Si cae arriba de la caja
                 if (pBottom - this.player.vy <= c.y + 10 && this.player.vy > 0) {
                     this.player.y = c.y - this.player.height;
@@ -4222,7 +5651,7 @@ class Game {
                             // Emboscada Goblínica Sorpresa
                             particles.addFloatingText(c.x + c.width/2, c.y - 20, "⚠️ ¡EMBOSCADA! ⚠️", "#ff2200", 12, true);
                             audio.playDeath();
-                            
+
                             // Spawnear un Goblin Swordsman en la posición de la caja
                             this.skeletons.push(new GoblinSwordsman(c.x, c.y - 30));
                             particles.spawnDust(c.x + c.width/2, c.y + c.height/2, 12);
@@ -4260,6 +5689,7 @@ class Game {
                     }
                     damage += (this.player.damageLevel - 1) * 4;
                     damage = this.applyThunderRelicBonus(damage, b);
+                    damage = this.applyStormRelicSwordBonus(damage);
                     const loot = b.takeDamage(damage);
                     if (!b.active) this.player.statsEnemiesKilled++;
                     this.freezeTimer = 4;
@@ -4285,12 +5715,49 @@ class Game {
                     }
                     damage += (this.player.damageLevel - 1) * 8;
                     damage = this.applyThunderRelicBonus(damage, sentinel);
+                    damage = this.applyStormRelicSwordBonus(damage);
                     const loot = sentinel.takeDamage(damage);
                     if (!sentinel.active) this.player.statsEnemiesKilled++;
                     this.freezeTimer = this.player.isChargedStriking ? 10 : 6;
                     if (loot) this.lootItems.push(loot);
                 }
             });
+
+            // Atacar Espectros (SpectralWraith)
+            if (this.spectralWraiths && this.spectralWraiths.length > 0) {
+                this.spectralWraiths.forEach(w => {
+                    if (w.active && !this.player.hitTargets.includes(w) && this.checkAABBCollision(attackBox, w)) {
+                        this.player.hitTargets.push(w);
+                        let damage = this.player.isChargedStriking ? 50 : 30;
+                        if (this.player.weapon === 'legendary') {
+                            damage = this.player.isChargedStriking ? 45 : 45;
+                            if (this.player.isChargedStriking) this.applyFireDot(w);
+                        } else if (this.player.weapon === 'storm') {
+                            damage = this.player.isChargedStriking ? 82 : 58;
+                            if (this.player.isChargedStriking) this.applyElectricDot(w);
+                        }
+                        damage += (this.player.damageLevel - 1) * 8;
+                        damage = this.applyThunderRelicBonus(damage, w);
+                        damage = this.applyStormRelicSwordBonus(damage);
+
+                        const loot = w.takeDamage(damage);
+                        if (!w.active) {
+                            this.player.statsEnemiesKilled++;
+                            // Revelar VoidPlatforms cercanas al morir el wraith
+                            this.platforms.forEach(plat => {
+                                if (plat instanceof VoidPlatform) {
+                                    const dx = w.x - plat.x;
+                                    const dy = w.y - plat.y;
+                                    if (Math.sqrt(dx*dx + dy*dy) < 250) plat.reveal();
+                                }
+                            });
+                            this.syncWorldFiveTwoVoidPlatforms();
+                        }
+                        this.freezeTimer = this.player.isChargedStriking ? 10 : 6;
+                        if (loot) this.lootItems.push(loot);
+                    }
+                });
+            }
 
             // Atacar Esqueletos Pequeños
             this.skeletons.forEach(s => {
@@ -4310,6 +5777,7 @@ class Game {
                     }
                     damage += (this.player.damageLevel - 1) * 8;
                     damage = this.applyThunderRelicBonus(damage, s);
+                    damage = this.applyStormRelicSwordBonus(damage);
                     if (this.level >= 19 && this.level <= 24 && this.player.isChargedStriking) {
                         damage = Math.max(damage, (s.hp || 0) * 3);
                     }
@@ -4338,6 +5806,7 @@ class Game {
                     }
                     damage += (this.player.damageLevel - 1) * 8;
                     damage = this.applyThunderRelicBonus(damage, a);
+                    damage = this.applyStormRelicSwordBonus(damage);
                     if (this.level >= 19 && this.level <= 24 && this.player.isChargedStriking) {
                         damage = Math.max(damage, (a.hp || 0) * 3);
                     }
@@ -4366,9 +5835,49 @@ class Game {
                     }
                     damage += (this.player.damageLevel - 1) * 4;
                     damage = this.applyThunderRelicBonus(damage, this.boss);
-                    
+                    damage = this.applyStormRelicSwordBonus(damage);
+
                     // Pasar la dirección de empuje y la posición central del jugador para bloquear con escudo
                     this.boss.takeDamage(damage, (this.player.x + this.player.width/2 > this.boss.x + this.boss.width/2 ? 1 : -1), this.player.x + this.player.width/2);
+                    this.freezeTimer = this.player.isChargedStriking ? 12 : 7;
+                }
+            }
+
+            // Atacar al Doppelgänger (Nivel 34)
+            if (this.level === 34 && this.boss && this.boss.hp > 0 && this.boss.state !== 'dead' && !this.player.hitTargets.includes(this.boss)) {
+                if (this.checkAABBCollision(attackBox, this.boss)) {
+                    this.player.hitTargets.push(this.boss);
+                    let damage = this.player.isChargedStriking ? 25 : 15;
+                    if (this.player.weapon === 'legendary') {
+                        damage = this.player.isChargedStriking ? 35 : 25;
+                        if (this.player.isChargedStriking) this.applyFireDot(this.boss);
+                    } else if (this.player.weapon === 'storm') {
+                        damage = this.player.isChargedStriking ? 55 : 35;
+                        if (this.player.isChargedStriking) this.applyElectricDot(this.boss);
+                    }
+                    damage += (this.player.damageLevel - 1) * 4;
+                    damage = this.applyThunderRelicBonus(damage, this.boss);
+                    damage = this.applyStormRelicSwordBonus(damage);
+                    this.boss.takeDamage(damage, (this.player.x + this.player.width/2 > this.boss.x + this.boss.width/2 ? 1 : -1), this.player);
+                    this.freezeTimer = this.player.isChargedStriking ? 12 : 7;
+                }
+            }
+            const doppelTwin = this.level === 34 && this.boss ? this.boss.phaseTwin : null;
+            if (doppelTwin && doppelTwin.hp > 0 && doppelTwin.state !== 'dead' && !this.player.hitTargets.includes(doppelTwin)) {
+                if (this.checkAABBCollision(attackBox, doppelTwin)) {
+                    this.player.hitTargets.push(doppelTwin);
+                    let damage = this.player.isChargedStriking ? 25 : 15;
+                    if (this.player.weapon === 'legendary') {
+                        damage = this.player.isChargedStriking ? 35 : 25;
+                        if (this.player.isChargedStriking) this.applyFireDot(doppelTwin);
+                    } else if (this.player.weapon === 'storm') {
+                        damage = this.player.isChargedStriking ? 55 : 35;
+                        if (this.player.isChargedStriking) this.applyElectricDot(doppelTwin);
+                    }
+                    damage += (this.player.damageLevel - 1) * 4;
+                    damage = this.applyThunderRelicBonus(damage, doppelTwin);
+                    damage = this.applyStormRelicSwordBonus(damage);
+                    doppelTwin.takeDamage(damage, (this.player.x + this.player.width/2 > doppelTwin.x + doppelTwin.width/2 ? 1 : -1), this.player);
                     this.freezeTimer = this.player.isChargedStriking ? 12 : 7;
                 }
             }
@@ -4390,6 +5899,7 @@ class Game {
                     }
                     damage += (this.player.damageLevel - 1) * 4;
                     damage = this.applyThunderRelicBonus(damage, mb);
+                    damage = this.applyStormRelicSwordBonus(damage);
                     const drop = mb.takeDamage(damage);
                     this.freezeTimer = this.player.isChargedStriking ? 12 : 7;
                     if (drop) {
@@ -4415,7 +5925,7 @@ class Game {
 
         for (let i = this.lootItems.length - 1; i >= 0; i--) {
                 const item = this.normalizeHealthLoot(this.lootItems[i]);
-            item.update(this.floorY, this.platforms);
+            item.update(this.isAbyssLevel() ? Number.POSITIVE_INFINITY : this.floorY, this.platforms);
 
             if (this.checkAABBCollision(virtualPlayerBox, item)) {
                 if (item.type === 'coin') {
@@ -4470,6 +5980,13 @@ class Game {
                     particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 30, "¡LLAVE DEL BOSQUE!", "#ffd700", 13, true);
                     audio.playBonfire();
                     this.updateInventoryUI(); // Mostrar la llave en el inventario/bulto
+                    this.saveGame();
+                } else if (item.type === 'void_key') {
+                    this.player.hasVoidKey = true;
+                    particles.spawnCollectGlow(this.player.x + this.player.width/2, this.player.y + this.player.height/2, '#b642f5', 18);
+                    particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 30, "¡LLAVE DEL VACÍO!", "#b642f5", 13, true);
+                    audio.playBonfire();
+                    this.updateInventoryUI();
                     this.saveGame();
                 }
                 item.life = 0; // Marcar eliminado
@@ -4536,7 +6053,7 @@ class Game {
 
         const targetCamY = this.player.y - 540 * 0.42; // Subir la pantalla cuando el caballero escala
         this.cameraY = this.cameraY * 0.9 + targetCamY * 0.1;
-        
+
         // Limitar cámara a las dimensiones del nivel
         this.cameraX = Math.max(0, Math.min(this.levelWidth - 960, this.cameraX));
         this.cameraY = Math.max(540 - this.levelHeight, Math.min(0, this.cameraY));
@@ -4545,7 +6062,8 @@ class Game {
         this.updateHud();
 
         // 11. Manejar Muerte del Héroe
-        if (this.player.hp <= 0 && this.state === 'playing') {
+        if (this.player.hp <= 0 && this.state === 'playing' && !this.gameOverTriggered) {
+            this.gameOverTriggered = true;
             setTimeout(() => this.triggerGameOver(), 1500);
         }
     }
@@ -4555,15 +6073,27 @@ class Game {
     }
 
     applyThunderRelicBonus(baseDamage, enemy) {
-        if (!this.player?.isChargedStriking || !this.player.thunderRelicReady || !this.acquiredRelics.has('storm_oath')) {
+        if (!this.player?.isChargedStriking || !this.player.thunderRelicReady || !this.equippedRelics.has('storm_oath')) {
             return baseDamage;
         }
 
         this.player.thunderRelicReady = false;
+        this.player.stormRelicJustTriggered = true;
         particles.spawnSparks(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, 18, 0);
         particles.addFloatingText(enemy.x + enemy.width / 2, enemy.y - 35, 'JURAMENTO DEL TRUENO', '#d9f6ff', 9, true);
         audio.playThunder();
-        return baseDamage + 18;
+        return baseDamage + 16;
+    }
+
+    applyStormRelicSwordBonus(baseDamage) {
+        if (!this.equippedRelics?.has('storm_oath') || this.player?.thunderRelicReady) {
+            return baseDamage;
+        }
+        if (this.player?.stormRelicJustTriggered) {
+            this.player.stormRelicJustTriggered = false;
+            return baseDamage;
+        }
+        return baseDamage + 8;
     }
 
     applyElectricDot(enemy) {
@@ -4573,7 +6103,7 @@ class Game {
     applyElementalDot(enemy, type = 'fire') {
         if (!enemy || enemy.hp <= 0) return;
         if (enemy.active === false) return;
-        
+
         // Evitar acumular múltiples DOTs del mismo tipo en el mismo enemigo.
         // Si ya tiene uno activo, se refresca a 5 segundos.
         const existing = this.activeFireDots.find(dot => dot.enemy === enemy && dot.type === type);
@@ -4582,14 +6112,14 @@ class Game {
             existing.nextTickFrames = 60; // Reiniciar también el temporizador del siguiente tick
             return;
         }
-        
+
         this.activeFireDots.push({
             enemy: enemy,
             type,
             framesRemaining: 300, // 5 segundos a 60 FPS
             nextTickFrames: 60    // 1 segundo
         });
-        
+
         const isElectric = type === 'electric';
         const text = isElectric ? "¡ELECTROCUTADO!" : "¡QUEMADURA!";
         const color = isElectric ? "#9ee8ff" : "#ff5500";
@@ -4603,28 +6133,28 @@ class Game {
                 particles.spawnFire(px, py, 1.2);
             }
         }
-        
+
         particles.addFloatingText(enemy.x + enemy.width/2, enemy.y - 25, text, color, 10, true);
     }
 
     updateFireDots() {
         if (!this.activeFireDots) return;
-        
+
         for (let i = this.activeFireDots.length - 1; i >= 0; i--) {
             const dot = this.activeFireDots[i];
             const enemy = dot.enemy;
             const isElectric = dot.type === 'electric';
             const dotColor = isElectric ? "#9ee8ff" : "#ff5500";
-            
+
             // Si el enemigo ya no está activo o ha muerto, removemos el DOT
             if (enemy.active === false || enemy.hp <= 0) {
                 this.activeFireDots.splice(i, 1);
                 continue;
             }
-            
+
             dot.framesRemaining--;
             dot.nextTickFrames--;
-            
+
             // Emitir partículas pasivas en el aire sobre el cuerpo del enemigo
             if (this.gameTime % 4 === 0) {
                 const px = enemy.x + Math.random() * enemy.width;
@@ -4635,28 +6165,28 @@ class Game {
                     particles.spawnFire(px, py, 0.6);
                 }
             }
-            
+
             if (dot.nextTickFrames <= 0) {
                 dot.nextTickFrames = 60; // Tick cada 1 segundo (60 frames)
-                
+
                 // Aplicar exactamente 5 de daño por segundo durante 5 segundos.
                 const originalArmor = enemy.hasArmor;
                 enemy.hasArmor = false;
-                
+
                 // Interceptar addFloatingText para pintar el daño del elemento correcto.
                 const originalAddFloatingText = particles.addFloatingText;
                 particles.addFloatingText = function(x, y, text, color, fontSize, isCritical) {
                     const finalColor = text.startsWith("-") ? dotColor : color;
                     originalAddFloatingText.call(particles, x, y, text, finalColor, fontSize, isCritical);
                 };
-                
+
                 // Aplicar daño
                 const loot = enemy.takeDamage(5);
-                
+
                 // Restaurar comportamientos originales
                 enemy.hasArmor = originalArmor;
                 particles.addFloatingText = originalAddFloatingText;
-                
+
                 // Si el enemigo suelta botín al morir (p. ej. esqueleto pequeño/arquero/goblin), lo añadimos
                 if (loot) {
                     if (loot.type) {
@@ -4675,7 +6205,7 @@ class Game {
                         }
                     }
                 }
-                
+
                 // Spawnear impacto extra del elemento.
                 for (let k = 0; k < 6; k++) {
                     const px = enemy.x + enemy.width/2 + (Math.random() - 0.5)*16;
@@ -4687,7 +6217,7 @@ class Game {
                     }
                 }
             }
-            
+
             // Si expira la duración total (5 segundos = 300 frames)
             if (dot.framesRemaining <= 0) {
                 this.activeFireDots.splice(i, 1);
@@ -4704,6 +6234,12 @@ class Game {
         // Limpiar
         this.ctx.fillStyle = '#0d0c10';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        if (this.state === 'world6_cinematic') {
+            this.drawWorld6Cinematic();
+            this.ctx.restore();
+            return;
+        }
 
         // Sacudida de pantalla (Screen Shake)
         let dx = 0, dy = 0;
@@ -4754,9 +6290,38 @@ class Game {
             this.drawWorld4BoundaryWall();
         }
 
+        if (this.level === 15 && this.world3StormLever?.visible) {
+            const lever = this.world3StormLever;
+            this.ctx.save();
+            this.ctx.fillStyle = '#162033';
+            this.ctx.fillRect(lever.x, lever.y + 20, 24, 12);
+            this.ctx.strokeStyle = lever.activated ? '#d9f6ff' : '#9ee8ff';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(lever.x, lever.y + 20, 24, 12);
+            this.ctx.fillStyle = '#d9f6ff';
+            this.ctx.fillRect(lever.x + 8, lever.y + 16, 8, 6);
+            this.ctx.strokeStyle = lever.activated ? '#ffd700' : '#d9f6ff';
+            this.ctx.lineWidth = 3;
+            this.ctx.beginPath();
+            this.ctx.moveTo(lever.x + 12, lever.y + 18);
+            if (lever.activated) {
+                this.ctx.lineTo(lever.x + 20, lever.y + 24);
+                this.ctx.arc(lever.x + 20, lever.y + 24, 4, 0, Math.PI * 2);
+            } else {
+                this.ctx.lineTo(lever.x + 4, lever.y + 4);
+                this.ctx.arc(lever.x + 4, lever.y + 4, 4, 0, Math.PI * 2);
+            }
+            this.ctx.stroke();
+            this.ctx.fillStyle = lever.activated ? '#ffd700' : '#d9f6ff';
+            this.ctx.fill();
+            this.ctx.restore();
+        }
+
         // 1.3. Dibujar Cofres de Tesoro
         if (this.chests) {
-            this.chests.forEach(c => c.draw(this.ctx));
+            this.chests.forEach(c => {
+                if (!c.hidden) c.draw(this.ctx);
+            });
         }
         this.treasureDoors.forEach(d => d.draw(this.ctx));
         this.loreTablets.forEach(t => t.draw(this.ctx));
@@ -4764,15 +6329,15 @@ class Game {
         this.relicPedestals.forEach(r => r.draw(this.ctx, this.gameTime));
 
         // 1.4. Dibujar Portal de Salida final del Nivel 4 o 5
-        if (this.exitDoor) {
+        if (this.exitDoor && this.level !== 26) {
             this.ctx.save();
             const ex = this.exitDoor.x;
             const ey = this.exitDoor.y;
-            
+
             // Arco de piedra del portal
             this.ctx.fillStyle = '#222';
             this.ctx.fillRect(ex, ey, 40, 60);
-            
+
             // Núcleo del portal de oro brillante
             const portalGrad = this.ctx.createRadialGradient(ex + 20, ey + 30, 5, ex + 20, ey + 30, 25);
             portalGrad.addColorStop(0, '#fff');
@@ -4780,15 +6345,15 @@ class Game {
             portalGrad.addColorStop(1, 'rgba(0,0,0,0)');
             this.ctx.fillStyle = portalGrad;
             this.ctx.fillRect(ex + 2, ey + 2, 36, 56);
-            
+
             this.ctx.strokeStyle = '#ffd700';
             this.ctx.lineWidth = 3;
             this.ctx.strokeRect(ex, ey, 40, 60);
 
-            // Si es Nivel 16 y la puerta goblínica sigue bloqueada, dibujar candado
-            if (this.level === 16 && !this.forestDoorUnlocked) {
+            // Si una salida especial sigue bloqueada, dibujar candado
+            if ((this.level === 16 && !this.forestDoorUnlocked) || (this.level === 30 && !this.player?.hasVoidKey)) {
                 // Dibujar una reja de hierro gótica cruzada en rojo/gris sobre el portal
-                this.ctx.strokeStyle = '#4e4e5e';
+                this.ctx.strokeStyle = this.level === 30 ? '#7b3fd1' : '#4e4e5e';
                 this.ctx.lineWidth = 4;
                 // Dibujar X de hierro
                 this.ctx.beginPath();
@@ -4799,9 +6364,9 @@ class Game {
                 this.ctx.stroke();
 
                 // Dibujar candado dorado central con ojo de cerradura
-                this.ctx.fillStyle = '#d1a115';
+                this.ctx.fillStyle = this.level === 30 ? '#b642f5' : '#d1a115';
                 this.ctx.fillRect(ex + 12, ey + 20, 16, 16);
-                this.ctx.strokeStyle = '#8b6914';
+                this.ctx.strokeStyle = this.level === 30 ? '#d9f6ff' : '#8b6914';
                 this.ctx.strokeRect(ex + 12, ey + 20, 16, 16);
 
                 // Ojo de la cerradura
@@ -4818,10 +6383,142 @@ class Game {
         // 1.5. Dibujar Plataformas y Trampas (si existen)
         if (this.platforms.length > 0 || this.fireTraps.length > 0 || this.windCurrents.length > 0 || this.windCrystals.length > 0 || this.lightningTraps.length > 0) {
             this.windCurrents.forEach(wc => wc.draw(this.ctx, this.gameTime));
-            this.platforms.forEach(p => p.draw(this.ctx));
+            this.platforms.forEach(p => {
+                if (!p.hidden) p.draw(this.ctx);
+            });
             this.fireTraps.forEach(ft => ft.draw(this.ctx));
             this.lightningTraps.forEach(trap => trap.draw(this.ctx));
             this.windCrystals.forEach(crystal => crystal.draw(this.ctx, this.gameTime));
+        }
+
+        // Dibujar Palanca de Transición (Nivel 26)
+        if (this.level === 26 && this.world5TransitionLever) {
+            const lever = this.world5TransitionLever;
+            this.ctx.save();
+            this.ctx.fillStyle = '#3e3d45';
+            this.ctx.fillRect(lever.x, lever.y + 20, 24, 12);
+            this.ctx.strokeStyle = '#1b1a20';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(lever.x, lever.y + 20, 24, 12);
+
+            this.ctx.fillStyle = '#0f0e12';
+            this.ctx.fillRect(lever.x + 8, lever.y + 16, 8, 6);
+
+            this.ctx.strokeStyle = '#9ee8ff'; // Color de energía celeste místico
+            this.ctx.lineWidth = 3;
+            this.ctx.beginPath();
+            if (!lever.activated) {
+                this.ctx.moveTo(lever.x + 12, lever.y + 18);
+                this.ctx.lineTo(lever.x + 4, lever.y + 4);
+                this.ctx.stroke();
+                this.ctx.fillStyle = '#9ee8ff';
+                this.ctx.beginPath();
+                this.ctx.arc(lever.x + 4, lever.y + 4, 4, 0, Math.PI*2);
+                this.ctx.fill();
+            } else {
+                this.ctx.moveTo(lever.x + 12, lever.y + 18);
+                this.ctx.lineTo(lever.x + 20, lever.y + 24);
+                this.ctx.stroke();
+                this.ctx.fillStyle = '#b642f5'; // Violeta al activarse
+                this.ctx.beginPath();
+                this.ctx.arc(lever.x + 20, lever.y + 24, 4, 0, Math.PI*2);
+                this.ctx.fill();
+            }
+            this.ctx.restore();
+        }
+
+        // Dibujar Plataforma del Elevador de Transición (Nivel 26)
+        if (this.level === 26 && this.world5TransitionElevator) {
+            const elevator = this.world5TransitionElevator;
+            this.ctx.save();
+
+            // Dibujar Cadenas metálicas pesadas en el fondo
+            this.ctx.strokeStyle = 'rgba(80, 80, 95, 0.45)';
+            this.ctx.lineWidth = 4;
+
+            // Cadena izquierda
+            this.ctx.beginPath();
+            this.ctx.moveTo(elevator.x + 15, -1700);
+            this.ctx.lineTo(elevator.x + 15, elevator.y);
+            this.ctx.stroke();
+
+            // Cadena derecha
+            this.ctx.beginPath();
+            this.ctx.moveTo(elevator.x + elevator.width - 15, -1700);
+            this.ctx.lineTo(elevator.x + elevator.width - 15, elevator.y);
+            this.ctx.stroke();
+
+            // Dibujar eslabones dibujando líneas discontinuas
+            this.ctx.strokeStyle = 'rgba(50, 50, 60, 0.65)';
+            this.ctx.lineWidth = 6;
+            this.ctx.setLineDash([8, 12]);
+            this.ctx.beginPath();
+            this.ctx.moveTo(elevator.x + 15, -1700);
+            this.ctx.lineTo(elevator.x + 15, elevator.y);
+            this.ctx.moveTo(elevator.x + elevator.width - 15, -1700);
+            this.ctx.lineTo(elevator.x + elevator.width - 15, elevator.y);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]); // Reset
+
+            // Plataforma del ascensor: Piedra negra con decoraciones góticas violetas
+            this.ctx.fillStyle = '#1c1b22'; // Piedra oscura
+            this.ctx.fillRect(elevator.x, elevator.y, elevator.width, elevator.height);
+            this.ctx.strokeStyle = '#b642f5'; // Borde rúnico violeta
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeRect(elevator.x, elevator.y, elevator.width, elevator.height);
+
+            // Runa o emblema central
+            this.ctx.fillStyle = '#8f34d1';
+            this.ctx.fillRect(elevator.x + elevator.width/2 - 20, elevator.y + 4, 40, elevator.height - 8);
+            this.ctx.restore();
+        }
+
+        // Dibujar la Gran Puerta Espectral (Vórtice Violeta/Negro) en el Nivel 26
+        if (this.level === 26 && this.exitDoor) {
+            const door = this.exitDoor;
+            this.ctx.save();
+
+            const cx = door.x + door.width / 2;
+            const cy = door.y + door.height / 2;
+
+            // 1. Destello exterior radial
+            const radGrad = this.ctx.createRadialGradient(cx, cy, 5, cx, cy, 45);
+            radGrad.addColorStop(0, 'rgba(150, 60, 255, 0.8)');
+            radGrad.addColorStop(0.5, 'rgba(100, 30, 200, 0.4)');
+            radGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            this.ctx.fillStyle = radGrad;
+            this.ctx.beginPath();
+            this.ctx.arc(cx, cy, 45, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // 2. Anillo exterior rúnico
+            this.ctx.strokeStyle = '#b642f5';
+            this.ctx.lineWidth = 3;
+            this.ctx.beginPath();
+            this.ctx.arc(cx, cy, 32, 0, Math.PI * 2);
+            this.ctx.stroke();
+
+            // 3. Vórtice espiral concéntrico giratorio
+            this.ctx.translate(cx, cy);
+            this.ctx.rotate(this.gameTime * 0.04); // Girar constantemente
+
+            this.ctx.strokeStyle = '#8f34d1';
+            this.ctx.lineWidth = 2;
+            for (let i = 0; i < 4; i++) {
+                this.ctx.rotate(Math.PI / 2);
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, 0);
+                this.ctx.bezierCurveTo(8, -8, 16, -16, 28, 0);
+                this.ctx.stroke();
+            }
+
+            // 4. Centro del vórtice: Negro absoluto
+            this.ctx.fillStyle = '#0a090e';
+            this.ctx.beginPath();
+            this.ctx.arc(0, 0, 16, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            this.ctx.restore();
         }
 
         // Dibujar Palanca Gótica (Mundo 4)
@@ -4834,11 +6531,11 @@ class Game {
             this.ctx.strokeStyle = '#1b1a20';
             this.ctx.lineWidth = 2;
             this.ctx.strokeRect(lever.x, lever.y + 20, 24, 12);
-            
+
             // Dibujar ranura
             this.ctx.fillStyle = '#0f0e12';
             this.ctx.fillRect(lever.x + 8, lever.y + 16, 8, 6);
-            
+
             // Dibujar manija
             this.ctx.strokeStyle = '#ff3300';
             this.ctx.lineWidth = 3;
@@ -4864,7 +6561,7 @@ class Game {
                 this.ctx.arc(lever.x + 20, lever.y + 24, 4, 0, Math.PI*2);
                 this.ctx.fill();
             }
-            
+
             // Prompt interactivo si el Caballero está cerca
             const distX = Math.abs((this.player.x + this.player.width/2) - (lever.x + lever.width/2));
             const distY = Math.abs((this.player.y + this.player.height/2) - (lever.y + lever.height/2));
@@ -4880,26 +6577,30 @@ class Game {
             this.ctx.restore();
         }
 
+        if (this.level === 23) {
+            this.drawWorld4MoonRace();
+        }
+
         // Dibujar Portón Rúnico Secreto (Mundo 4)
         if (this.level === 22 && this.world4SecretGate?.legacyGate) {
             const gate = this.world4SecretGate;
             this.ctx.save();
-            
+
             const doorY = gate.currentY !== undefined ? gate.currentY : gate.y;
-            
+
             // Cuerpo de la puerta de piedra gótica (gradiente)
             const grad = this.ctx.createLinearGradient(gate.x, doorY, gate.x + gate.width, doorY);
             grad.addColorStop(0, '#2e2c35');
             grad.addColorStop(0.5, '#484552');
             grad.addColorStop(1, '#2e2c35');
-            
+
             this.ctx.fillStyle = grad;
             this.ctx.fillRect(gate.x, doorY, gate.width, gate.height);
-            
+
             this.ctx.strokeStyle = '#151419';
             this.ctx.lineWidth = 3;
             this.ctx.strokeRect(gate.x, doorY, gate.width, gate.height);
-            
+
             // Ladrillos tallados en la piedra
             this.ctx.strokeStyle = '#151419';
             this.ctx.lineWidth = 1.5;
@@ -4909,13 +6610,13 @@ class Game {
                 this.ctx.lineTo(gate.x + gate.width, doorY + ly);
                 this.ctx.stroke();
             }
-            
+
             // Runas celestes brillantes talladas
             if (!gate.opened) {
                 this.ctx.shadowBlur = 6;
                 this.ctx.shadowColor = '#00ffff';
                 this.ctx.fillStyle = '#00ffff';
-                
+
                 this.ctx.font = "8px monospace";
                 this.ctx.textAlign = 'center';
                 this.ctx.fillText("ᚱ", gate.x + gate.width/2, doorY + 30);
@@ -4929,8 +6630,17 @@ class Game {
         // 2. Dibujar Obstáculos y Cajas
         this.spikes.forEach(s => s.draw(this.ctx));
         this.crates.forEach(c => c.draw(this.ctx));
-        
+
         this.blades.forEach(b => b.draw(this.ctx));
+
+        this.voidCrystals.forEach(crystal => crystal.draw(this.ctx));
+
+        if (this.spectralPortals && this.spectralPortals.length > 0) {
+            this.spectralPortals.forEach(portal => portal.draw(this.ctx));
+        }
+        if (this.spectralWraiths && this.spectralWraiths.length > 0) {
+            this.spectralWraiths.forEach(w => w.draw(this.ctx));
+        }
 
         // 3. Dibujar Enemigos
         this.bats.forEach(b => b.draw(this.ctx));
@@ -4940,15 +6650,19 @@ class Game {
         this.miniBosses.forEach(mb => mb.draw(this.ctx));
         this.arrows.forEach(arr => arr.draw(this.ctx));
 
-        // 4. Dibujar al Jefe Final Gigante (Nivel 5 y Nivel 11)
+        // 4. Dibujar al Jefe Final Gigante (Nivel 5, 11, 18, 25 y Doppelgänger 34)
         if (this.boss) {
-            // Ondas de choque sísmicas
-            this.boss.spawnedShockwaves.forEach(sw => sw.draw(this.ctx));
-            
+            // Ondas de choque sísmicas (solo SkeletonKingBoss las tiene)
+            if (this.boss.spawnedShockwaves) {
+                this.boss.spawnedShockwaves.forEach(sw => sw.draw(this.ctx));
+            }
+
             this.boss.draw(this.ctx);
-            
-            // Proyectiles del jefe
-            this.boss.spawnedProjectiles.forEach(p => p.draw(this.ctx));
+
+            // Proyectiles del jefe (solo SkeletonKingBoss los tiene)
+            if (this.boss.spawnedProjectiles) {
+                this.boss.spawnedProjectiles.forEach(p => p.draw(this.ctx));
+            }
         }
 
         // 5. Dibujar botín tirado (Loot)
@@ -4974,6 +6688,59 @@ class Game {
         }
 
         this.ctx.restore(); // Restaurar translate cámara y sacudidas
+        this.drawLoreNote();
+    }
+
+    showLoreNote(tablet) {
+        if (!tablet) return;
+        const lines = tablet.message.split('|').map(line => line.trim()).filter(Boolean);
+        this.activeLoreNote = {
+            title: 'INSCRIPCIÓN ANTIGUA',
+            lines
+        };
+        audio.playBonfire();
+    }
+
+    drawLoreNote() {
+        if (!this.activeLoreNote) return;
+
+        const note = this.activeLoreNote;
+        const ctx = this.ctx;
+        const width = 620;
+        const height = 118 + note.lines.length * 24;
+        const x = (this.canvas.width - width) / 2;
+        const y = 54;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(10, 8, 12, 0.78)';
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        ctx.fillStyle = '#261d16';
+        ctx.fillRect(x, y, width, height);
+        ctx.fillStyle = '#3a2a1e';
+        ctx.fillRect(x + 8, y + 8, width - 16, height - 16);
+        ctx.strokeStyle = '#d9b36a';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x, y, width, height);
+        ctx.strokeStyle = '#6f5634';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 12, y + 12, width - 24, height - 24);
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffd98a';
+        ctx.font = "10px 'Press Start 2P', monospace";
+        ctx.fillText(note.title, x + width / 2, y + 36);
+
+        ctx.fillStyle = '#f5e3bd';
+        ctx.font = "9px 'Press Start 2P', monospace";
+        note.lines.forEach((line, index) => {
+            ctx.fillText(line, x + width / 2, y + 72 + index * 25);
+        });
+
+        ctx.fillStyle = '#9ee8ff';
+        ctx.font = "7px 'Press Start 2P', monospace";
+        ctx.fillText("Pulsa E para cerrar", x + width / 2, y + height - 20);
+        ctx.restore();
     }
 
     // Dibujado procedimental ramificado de relámpagos pixelados en el fondo del Bosque
@@ -5032,7 +6799,7 @@ class Game {
         const by = this.bonfire.y;
 
         this.ctx.save();
-        
+
         // Piedras del círculo base
         this.ctx.fillStyle = '#4a4a58';
         this.ctx.strokeStyle = '#2d2d3a';
@@ -5044,7 +6811,7 @@ class Game {
         this.ctx.fillStyle = '#5c3a21';
         this.ctx.fillRect(bx + 10, by + 36, 6, 20);
         this.ctx.fillRect(bx + 32, by + 36, 6, 20);
-        
+
         this.ctx.save();
         this.ctx.translate(bx + 24, by + 46);
         this.ctx.rotate(Math.PI * 0.25);
@@ -5066,10 +6833,10 @@ class Game {
             this.ctx.fillStyle = '#b0b0b0'; // Filo clavado
             this.ctx.fillRect(-2, -10, 4, 25);
             this.ctx.restore();
-            
+
             // Fuego ardiente núcleo procedural
             const fBob = Math.sin(this.bonfire.animTime * 1.5) * 3;
-            
+
             this.ctx.fillStyle = 'rgba(255, 128, 0, 0.45)';
             this.ctx.beginPath();
             this.ctx.arc(bx + 24, by + 34 + fBob, 16, 0, Math.PI*2);
@@ -5226,7 +6993,7 @@ class Game {
         const hy = this.player.hookY;
 
         this.ctx.save();
-        
+
         // 1. Dibujar línea de acero de la cadena
         this.ctx.strokeStyle = '#5a5a6a';
         this.ctx.lineWidth = 3.5;
@@ -5246,12 +7013,12 @@ class Game {
             const ratio = i / links;
             const lx = px + dx * ratio;
             const ly = py + dy * ratio;
-            
+
             this.ctx.fillStyle = i % 2 === 0 ? '#8e8e9e' : '#5a5a6a';
             this.ctx.beginPath();
             this.ctx.arc(lx, ly, 3, 0, Math.PI*2);
             this.ctx.fill();
-            
+
             this.ctx.fillStyle = '#111';
             this.ctx.beginPath();
             this.ctx.arc(lx, ly, 1.2, 0, Math.PI*2);
@@ -5275,6 +7042,8 @@ class Game {
         const isWorldTwoLava = (this.level >= 6 && this.level <= 10) || this.level === 11;
         const isWorldThreeForest = this.level >= 12 && this.level <= 17;
         const isWorldFourSkyCastle = this.level >= 19 && this.level <= 25;
+        const isWorldFiveAbyss = this.isAbyssLevel();
+        const isWorldSixSky = this.level >= 35;
         const isBossOne = this.level === 5;
         const isBossTwo = this.level === 11;
         const isBossThree = this.level === 18;
@@ -5309,6 +7078,14 @@ class Game {
             bgGrad.addColorStop(0, '#06101f');
             bgGrad.addColorStop(0.5, '#111d32');
             bgGrad.addColorStop(1, '#07101c');
+        } else if (isWorldFiveAbyss) {
+            bgGrad.addColorStop(0, '#02030a');
+            bgGrad.addColorStop(0.45, '#070014');
+            bgGrad.addColorStop(1, '#000000');
+        } else if (isWorldSixSky) {
+            bgGrad.addColorStop(0, '#dff8ff');
+            bgGrad.addColorStop(0.5, '#86c6ff');
+            bgGrad.addColorStop(1, '#f8fbff');
         }
         this.ctx.fillStyle = bgGrad;
         this.ctx.fillRect(0, 0, w, h);
@@ -5316,7 +7093,7 @@ class Game {
         // 2. Capa lejana (Paralaje 0.12x)
         this.ctx.save();
         this.ctx.translate(-Math.round(this.cameraX * 0.12), -Math.round(this.cameraY * 0.08));
-        
+
         if (isWorldOne) {
             this.ctx.fillStyle = 'rgba(20, 14, 26, 0.5)';
             const archWidth = 240;
@@ -5341,7 +7118,7 @@ class Game {
                 const cx = i * columnWidth;
                 const columnTop = -250;
                 this.ctx.fillRect(cx + 20, columnTop, 35, h - columnTop); // Columnas medievales gruesas
-                
+
                 // Arcos apuntados de ladrillo
                 this.ctx.beginPath();
                 const archY = 90;
@@ -5406,13 +7183,52 @@ class Game {
                 this.ctx.fill();
                 this.ctx.fillRect(tx + 80, 120, 18, 70);
             }
+        } else if (isWorldSixSky) {
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
+            for (let i = 0; i < 12; i++) {
+                const cx = i * 220 + Math.sin(this.gameTime * 0.006 + i) * 18;
+                const cy = 130 + (i % 4) * 54;
+                this.ctx.beginPath();
+                this.ctx.ellipse(cx, cy, 84, 24, 0, 0, Math.PI * 2);
+                this.ctx.ellipse(cx + 50, cy - 8, 58, 20, 0, 0, Math.PI * 2);
+                this.ctx.ellipse(cx - 56, cy + 5, 50, 18, 0, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+
+            const castleX = 1650;
+            const castleY = 120;
+            this.ctx.save();
+            this.ctx.shadowBlur = 25;
+            this.ctx.shadowColor = '#09000f';
+            this.ctx.fillStyle = '#f9fbff';
+            this.ctx.fillRect(castleX, castleY, 170, 160);
+            this.ctx.fillRect(castleX + 28, castleY - 70, 42, 70);
+            this.ctx.fillRect(castleX + 108, castleY - 96, 48, 96);
+            this.ctx.beginPath();
+            this.ctx.moveTo(castleX + 28, castleY - 70);
+            this.ctx.lineTo(castleX + 49, castleY - 118);
+            this.ctx.lineTo(castleX + 70, castleY - 70);
+            this.ctx.closePath();
+            this.ctx.fill();
+            this.ctx.beginPath();
+            this.ctx.moveTo(castleX + 108, castleY - 96);
+            this.ctx.lineTo(castleX + 132, castleY - 150);
+            this.ctx.lineTo(castleX + 156, castleY - 96);
+            this.ctx.closePath();
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+            this.ctx.beginPath();
+            this.ctx.arc(castleX + 88, castleY + 58, 230, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
         }
         this.ctx.restore();
 
         // 3. Capa media de Columnas y Antorchas (Paralaje 0.45x)
         this.ctx.save();
         this.ctx.translate(-Math.round(this.cameraX * 0.45), -Math.round(this.cameraY * 0.25));
-        
+
         if (isWorldOne || (isWorldTwoLava && !isBossTwo)) {
             this.ctx.fillStyle = isWorldOne ? '#1c1524' : '#281310';
             this.ctx.strokeStyle = isWorldOne ? '#0d0a11' : '#140604';
@@ -5438,7 +7254,7 @@ class Game {
                 this.ctx.fillRect(t.x - 4, t.y, 8, 18);
                 this.ctx.fillStyle = '#2d2d35';
                 this.ctx.fillRect(t.x - 6, t.y - 4, 12, 6);
-                
+
                 // Halo de luz cálido
                 const lightRad = 25 + Math.sin(this.gameTime * 0.1) * 3;
                 const haloGrad = this.ctx.createRadialGradient(t.x, t.y - 12, 2, t.x, t.y - 12, lightRad);
@@ -5450,7 +7266,7 @@ class Game {
                     haloGrad.addColorStop(0, 'rgba(255, 50, 0, 0.5)');
                     haloGrad.addColorStop(1, 'rgba(255, 0, 0, 0)');
                 }
-                
+
                 this.ctx.fillStyle = haloGrad;
                 this.ctx.beginPath();
                 this.ctx.arc(t.x, t.y - 12, lightRad, 0, Math.PI * 2);
@@ -5478,13 +7294,13 @@ class Game {
                 this.ctx.fillRect(t.x - 52, t.y - 16, 16, 4); // Tapa
                 this.ctx.fillStyle = '#00ff66'; // Cristal luminoso
                 this.ctx.fillRect(t.x - 50, t.y - 12, 12, 10);
-                
+
                 // Halo de luz verde mística
                 const lightRad = 32 + Math.sin(this.gameTime * 0.08) * 4;
                 const haloGrad = this.ctx.createRadialGradient(t.x - 44, t.y - 7, 2, t.x - 44, t.y - 7, lightRad);
                 haloGrad.addColorStop(0, 'rgba(0, 255, 102, 0.45)');
                 haloGrad.addColorStop(1, 'rgba(0, 255, 50, 0)');
-                
+
                 this.ctx.fillStyle = haloGrad;
                 this.ctx.beginPath();
                 this.ctx.arc(t.x - 44, t.y - 7, lightRad, 0, Math.PI * 2);
@@ -5538,7 +7354,7 @@ class Game {
         // 4. Suelo de Ladrillos (Capa 1.0x)
         this.ctx.save();
         this.ctx.translate(-Math.round(this.cameraX), -Math.round(this.cameraY));
-        
+
         // Bloques de piedra oscuros del suelo
         if (isWorldOne) {
             this.ctx.fillStyle = '#28252e';
@@ -5550,25 +7366,46 @@ class Game {
             this.ctx.fillStyle = '#1c2b1e'; // Piedra musgosa verde muy oscura
         } else if (isWorldFourSkyCastle) {
             this.ctx.fillStyle = '#263248';
+        } else if (isWorldSixSky) {
+            this.ctx.fillStyle = '#f8fbff';
         }
+        if (isWorldFiveAbyss) {
+            const voidGrad = this.ctx.createLinearGradient(0, this.floorY - 70, 0, h);
+            voidGrad.addColorStop(0, 'rgba(182, 66, 245, 0.16)');
+            voidGrad.addColorStop(0.35, 'rgba(20, 0, 36, 0.38)');
+            voidGrad.addColorStop(1, 'rgba(0, 0, 0, 0.92)');
+            this.ctx.fillStyle = voidGrad;
+            this.ctx.fillRect(0, this.floorY - 70, this.levelWidth, h - this.floorY + 70);
+            this.ctx.strokeStyle = 'rgba(182, 66, 245, 0.28)';
+            this.ctx.lineWidth = 2;
+            this.ctx.setLineDash([18, 20]);
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, this.floorY);
+            this.ctx.lineTo(this.levelWidth, this.floorY);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]);
+            this.ctx.restore();
+            return;
+        }
+
         this.ctx.fillRect(0, this.floorY, this.levelWidth, h - this.floorY);
-        
-        this.ctx.strokeStyle = isWorldOne ? '#18151c' : (isWorldTwoLava ? '#100a08' : ((isWorldThreeForest || isBossThree) ? '#122015' : (isWorldFourSkyCastle ? '#6da8d6' : '#0a120e')));
+
+        this.ctx.strokeStyle = isWorldOne ? '#18151c' : (isWorldTwoLava ? '#100a08' : ((isWorldThreeForest || isBossThree) ? '#122015' : (isWorldFourSkyCastle ? '#6da8d6' : (isWorldSixSky ? '#d9f6ff' : '#0a120e'))));
         this.ctx.lineWidth = 3;
         this.ctx.strokeRect(0, this.floorY, this.levelWidth, h - this.floorY);
 
         // Baldosas retro
-        this.ctx.strokeStyle = isWorldOne ? '#18151c' : (isWorldTwoLava ? '#ff4400' : ((isWorldThreeForest || isBossThree) ? '#2d5a37' : (isWorldFourSkyCastle ? '#9ee8ff' : '#0a120e'))); // Baldosas verdes en Mundo 3 // Magma brillante en Mundo 2
+        this.ctx.strokeStyle = isWorldOne ? '#18151c' : (isWorldTwoLava ? '#ff4400' : ((isWorldThreeForest || isBossThree) ? '#2d5a37' : (isWorldFourSkyCastle ? '#9ee8ff' : (isWorldSixSky ? '#ffffff' : '#0a120e')))); // Baldosas verdes en Mundo 3 // Magma brillante en Mundo 2
         this.ctx.lineWidth = isWorldTwoLava ? 1.5 : 2.5;
         this.ctx.beginPath();
-        
+
         const tileWidth = 64;
         const totalTiles = this.levelWidth / tileWidth;
         for (let i = 0; i < totalTiles; i++) {
             const tx = i * tileWidth;
             this.ctx.moveTo(tx, this.floorY);
             this.ctx.lineTo(tx, h);
-            
+
             const midY = this.floorY + (h - this.floorY) / 2;
             this.ctx.moveTo(tx - tileWidth/2, midY);
             this.ctx.lineTo(tx + tileWidth/2, midY);
@@ -5624,14 +7461,21 @@ class Game {
         if (this.domLevelIndicator) {
             let worldNum = 1;
             let levelSubNum = this.level;
-            if (this.level >= 12) {
-                if (this.level >= 19) {
-                    worldNum = 4;
-                    levelSubNum = this.level - 18;
-                } else {
+            if (this.level >= 35) {
+                worldNum = 6;
+                levelSubNum = this.level - 34;
+            } else if (this.level >= 27) {
+                worldNum = 5;
+                levelSubNum = this.level - 26;
+            } else if (this.level === 26) {
+                worldNum = 5;
+                levelSubNum = 0;
+            } else if (this.level >= 19) {
+                worldNum = 4;
+                levelSubNum = this.level - 18;
+            } else if (this.level >= 12) {
                 worldNum = 3;
                 levelSubNum = this.level - 11;
-                }
             } else if (this.level >= 6) {
                 worldNum = 2;
                 levelSubNum = this.level - 5;
@@ -5654,7 +7498,7 @@ class Game {
             const totalPotions = this.player.potions + this.player.greatPotions + this.player.berries + this.player.violetBerries;
             this.inventoryBadge.innerText = totalPotions;
             this.slotPotionQty.innerText = 'x' + this.player.potions;
-            
+
             if (this.slotGreatPotionQty) this.slotGreatPotionQty.innerText = 'x' + this.player.greatPotions;
             if (this.slotGreatPotion) this.slotGreatPotion.style.display = 'none';
             if (this.slotBerryQty) this.slotBerryQty.innerText = 'x' + this.player.berries;
@@ -5677,7 +7521,7 @@ class Game {
                     this.slotVioletBerry.style.display = 'none';
                 }
             }
-            
+
             // Si no tiene pociones en total, atenuar el bulto
             this.inventoryBadge.style.opacity = (totalPotions === 0) ? '0.3' : '1.0';
 
@@ -5700,6 +7544,9 @@ class Game {
         const shieldSlot = document.getElementById('equipped-shield-slot');
         const shieldIcon = document.getElementById('equipped-shield-icon');
         const shieldName = document.getElementById('equipped-shield-name');
+        const relicSlot = document.getElementById('equipped-relic-slot');
+        const relicIcon = document.getElementById('equipped-relic-icon');
+        const relicName = document.getElementById('equipped-relic-name');
 
         // 2. Actualizar sección superior "ARMA PRINCIPAL"
         if (equippedIcon && equippedName) {
@@ -5740,6 +7587,26 @@ class Game {
             }
         }
 
+        if (relicSlot && relicIcon && relicName) {
+            const activeRelic = Array.from(this.equippedRelics || [])[0];
+            if (activeRelic) {
+                const info = this.getRelicInfo(activeRelic);
+                relicIcon.innerText = info.icon;
+                relicIcon.style.filter = `drop-shadow(0 0 4px ${info.color})`;
+                relicName.innerText = info.name;
+                relicName.style.color = info.color;
+                relicSlot.style.borderColor = info.color;
+                relicSlot.style.boxShadow = `0 0 8px ${info.color}66`;
+            } else {
+                relicIcon.innerText = '◇';
+                relicIcon.style.filter = 'none';
+                relicName.innerText = 'Sin Reliquia';
+                relicName.style.color = '#d9b36a';
+                relicSlot.style.borderColor = '#7a5a22';
+                relicSlot.style.boxShadow = '0 0 6px rgba(255, 215, 0, 0.2)';
+            }
+        }
+
         // 4. Mostrar estado de "OBJETOS CLAVE" (Llave del Bosque)
         const keyItemsSection = document.getElementById('key-items-section');
         if (keyItemsSection) {
@@ -5765,6 +7632,28 @@ class Game {
                 keySlot.title = 'Llave del Bosque — Todavía no la tienes';
                 const keyIcon = typeof keySlot.querySelector === 'function' ? keySlot.querySelector('.slot-icon') : null;
                 if (keyIcon) keyIcon.style.filter = 'grayscale(1)';
+            }
+            }
+            const voidKeySlot = document.getElementById('slot-void-key');
+            const voidKeyQty = document.getElementById('slot-void-key-qty');
+            if (voidKeyQty) voidKeyQty.innerText = this.player.hasVoidKey ? 'x1' : 'x0';
+            if (voidKeySlot) {
+            if (this.player.hasVoidKey) {
+                voidKeySlot.classList.remove('empty-slot');
+                voidKeySlot.classList.add('active-slot');
+                voidKeySlot.style.borderColor = '#b642f5';
+                voidKeySlot.style.boxShadow = '0 0 8px rgba(182, 66, 245, 0.65)';
+                voidKeySlot.title = 'Llave del Vacío — Abre la salida sellada del Mundo 5-4';
+                const voidKeyIcon = typeof voidKeySlot.querySelector === 'function' ? voidKeySlot.querySelector('.slot-icon') : null;
+                if (voidKeyIcon) voidKeyIcon.style.filter = 'drop-shadow(0 0 3px #b642f5)';
+            } else {
+                voidKeySlot.classList.add('empty-slot');
+                voidKeySlot.classList.remove('active-slot');
+                voidKeySlot.style.borderColor = '#4a4a5a';
+                voidKeySlot.style.boxShadow = 'none';
+                voidKeySlot.title = 'Llave del Vacío — Todavía no la tienes';
+                const voidKeyIcon = typeof voidKeySlot.querySelector === 'function' ? voidKeySlot.querySelector('.slot-icon') : null;
+                if (voidKeyIcon) voidKeyIcon.style.filter = 'grayscale(1)';
             }
             }
         }
@@ -5942,6 +7831,69 @@ class Game {
 
                 this.domSubgridGrid.appendChild(slotEl);
             });
+        } else if (type === 'relic') {
+            if (this.domSubgridTitle) this.domSubgridTitle.innerText = 'RELIQUIAS';
+            if (this.domSubgridDesc) this.domSubgridDesc.innerText = 'Elige una reliquia activa. Solo una puede estar equipada.';
+
+            const relicsList = [
+                { id: 'wind_hook', desc: 'El gancho alcanza +70px. Origen: Juramento del primer pasillo.' },
+                { id: 'ash_berry', desc: 'Las bayas curan 5% extra. Origen: Guardias de Ceniza del mundo 2-2.' },
+                { id: 'storm_oath', desc: 'Primer cargado tras descansar: +16 daño de trueno. Después, tus golpes de espada ganan +8 daño mientras esté equipada.' },
+                { id: 'moon', desc: 'Una vez por descanso, evita un golpe mortal y te deja con 1 HP. Origen: Carrera lunar del mundo 4-5.' },
+                { id: 'root', name: 'Raíz Antigua', icon: '🌿', color: '#6be06b', unlocked: false, desc: 'Poder del bosque profundo. (Futuro)' },
+                { id: 'crown', name: 'Corona Rota', icon: '👑', color: '#ffd700', unlocked: false, desc: 'Recuerdo de un rey derrotado. (Futuro)' }
+            ].map(item => {
+                const info = this.getRelicInfo(item.id);
+                return {
+                    ...item,
+                    name: item.name || info.name,
+                    icon: item.icon || info.icon,
+                    color: item.color || info.color,
+                    unlocked: item.unlocked ?? this.acquiredRelics.has(item.id),
+                    desc: item.desc || info.description
+                };
+            });
+
+            relicsList.forEach(item => {
+                const slotEl = document.createElement('div');
+                const isEquipped = this.equippedRelics.has(item.id);
+                slotEl.className = 'inventory-slot';
+                slotEl.classList.add(item.unlocked ? 'active-slot' : 'locked-slot');
+                if (isEquipped) slotEl.classList.add('equipped-highlight');
+                slotEl.innerHTML = `
+                    <span class="slot-icon" style="filter: ${item.unlocked ? `drop-shadow(0 0 4px ${item.color})` : 'grayscale(1)'};">${item.icon}</span>
+                    <span class="slot-qty" style="background: ${isEquipped ? 'rgba(0, 255, 102, 0.85)' : (item.unlocked ? 'rgba(255, 215, 0, 0.85)' : 'rgba(0,0,0,0.8)')}; color: ${isEquipped ? '#fff' : (item.unlocked ? '#111' : '#888')};">${isEquipped ? 'USANDO' : (item.unlocked ? 'LISTO' : 'BLOQ')}</span>
+                `;
+
+                slotEl.addEventListener('mouseenter', () => {
+                    if (this.domSubgridDesc) {
+                        this.domSubgridDesc.innerHTML = `<strong style="color: ${item.color};">${item.name}</strong><br>${item.desc}`;
+                    }
+                });
+                slotEl.addEventListener('mouseleave', () => {
+                    if (this.domSubgridDesc) {
+                        this.domSubgridDesc.innerText = 'Elige una reliquia activa. Solo una puede estar equipada.';
+                    }
+                });
+                slotEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (!item.unlocked) {
+                        audio.playHit();
+                        particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 15, "¡BLOQUEADO!", "#ff3333", 8);
+                        return;
+                    }
+                    this.equippedRelics.clear();
+                    this.equippedRelics.add(item.id);
+                    this.applyRelicEffects();
+                    audio.playBonfire();
+                    particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 15, item.name.toUpperCase(), item.color, 8, true);
+                    this.updateInventoryUI();
+                    this.populateSubgrid('relic');
+                    this.saveGame();
+                });
+
+                this.domSubgridGrid.appendChild(slotEl);
+            });
         } else if (type === 'consumable') {
             if (this.domSubgridTitle) this.domSubgridTitle.innerText = 'CONSUMIBLES';
             if (this.domSubgridDesc) this.domSubgridDesc.innerText = 'Elige un consumible para usarlo.';
@@ -6011,6 +7963,8 @@ class Game {
                 nameLabel.innerText = "EL DUENDE GIGANTE";
             } else if (this.level === 25) {
                 nameLabel.innerText = "EL ÁNGEL CAÍDO DE LA TORMENTA";
+            } else if (this.level === 34) {
+                nameLabel.innerText = "TU PROPIO REFLEJO (DOPPELGÄNGER)";
             }
         }
         const bossHpPercent = Math.max(0, (this.boss.hp / this.boss.maxHp) * 100);
@@ -6025,7 +7979,7 @@ class Game {
     togglePause() {
         if (this.state !== 'playing') return;
         this.isPaused = !this.isPaused;
-        
+
         if (this.isPaused) {
             this.domPause.classList.remove('hidden');
             audio.stopMusic();
@@ -6040,7 +7994,7 @@ class Game {
     toggleMute() {
         audio.isMuted = !audio.isMuted;
         this.btnMute.innerText = audio.isMuted ? "SONIDO: OFF" : "SONIDO: ON";
-        
+
         if (audio.isMuted) {
             audio.stopMusic();
         } else if (!this.isPaused && this.state === 'playing') {
@@ -6084,12 +8038,230 @@ class Game {
         particles.addFloatingText(this.player.x + this.player.width / 2, this.player.y - 25, "MURALLAS 4-4", "#ffd700", 11, true);
     }
 
+    revealWorld3StormPuzzle() {
+        if (this.level !== 15 || !this.world3StormElevator) return;
+
+        this.world3StormElevator.hidden = false;
+        this.world3StormElevator.activate();
+        this.world3StormElevator.y = this.world3StormElevator.startY;
+        this.world3StormElevator.moving = false;
+        this.world3StormElevator.reachedTop = false;
+        this.world3StormElevator.lastDy = 0;
+
+        this.world3StormSecretPlatforms?.forEach(platform => {
+            platform.hidden = false;
+        });
+
+        if (this.world3StormLever) {
+            this.world3StormLever.visible = true;
+        }
+
+        audio.playThunder();
+        this.shakeTimer = 14;
+        this.shakeIntensity = 2.5;
+        particles.spawnCollectGlow(
+            this.world3StormElevator.x + this.world3StormElevator.width / 2,
+            this.world3StormElevator.y,
+            '#5dff8a',
+            24
+        );
+        particles.addFloatingText(
+            this.world3StormElevator.x + this.world3StormElevator.width / 2,
+            this.world3StormElevator.y - 22,
+            'ASCENSOR REVELADO',
+            '#5dff8a',
+            10,
+            true
+        );
+    }
+
+    startWorld4MoonRace() {
+        const race = this.world4MoonRace;
+        if (!race || race.completed) return;
+
+        race.active = true;
+        race.failed = false;
+        race.timer = 1080;
+        if (this.world4MoonRacePlatform) this.world4MoonRacePlatform.hidden = false;
+        if (race.finishButton) race.finishButton.visible = true;
+
+        this.player.x = race.startX;
+        this.player.y = race.startY;
+        this.player.vx = 0;
+        this.player.vy = 0;
+        this.player.isGrounded = true;
+        this.cameraX = 0;
+        this.cameraY = Math.max(540 - this.levelHeight, Math.min(0, this.player.y - 540 * 0.42));
+
+        audio.playThunder();
+        this.shakeTimer = 18;
+        this.shakeIntensity = 3.2;
+        particles.spawnCollectGlow(this.player.x + this.player.width / 2, this.player.y + this.player.height / 2, '#b8d7ff', 24);
+        particles.addFloatingText(this.player.x + this.player.width / 2, this.player.y - 30, 'EMPIEZA A CORRER', '#b8d7ff', 13, true);
+        if (!this.equippedRelics.has('wind_hook')) {
+            particles.addFloatingText(this.player.x + this.player.width / 2, this.player.y - 52, 'EQUIPA LA RELIQUIA DEL VIENTO', '#9ee8ff', 7, true);
+        }
+    }
+
+    failWorld4MoonRace() {
+        const race = this.world4MoonRace;
+        if (!race || !race.active) return;
+
+        race.active = false;
+        race.failed = true;
+        race.timer = 1080;
+        if (this.world4MoonRacePlatform) this.world4MoonRacePlatform.hidden = true;
+        if (race.finishButton) race.finishButton.visible = false;
+        audio.playHit();
+        particles.addFloatingText(this.player.x + this.player.width / 2, this.player.y - 28, 'RETO FALLIDO', '#ff3333', 11, true);
+        particles.addFloatingText(race.x + race.width / 2, race.y - 18, 'Pulsa E para reiniciar', '#ffd700', 7, false);
+    }
+
+    completeWorld4MoonRace() {
+        const race = this.world4MoonRace;
+        if (!race || !race.active) return;
+
+        race.active = false;
+        race.failed = false;
+        race.completed = true;
+        this.completedChallenges.add(race.id);
+        if (this.world4MoonRaceChest) {
+            this.world4MoonRaceChest.hidden = false;
+            this.world4MoonRaceChest.unlocked = true;
+            particles.spawnCollectGlow(this.world4MoonRaceChest.x + this.world4MoonRaceChest.width / 2, this.world4MoonRaceChest.y + this.world4MoonRaceChest.height / 2, '#b8d7ff', 26);
+            particles.addFloatingText(this.world4MoonRaceChest.x + this.world4MoonRaceChest.width / 2, this.world4MoonRaceChest.y - 18, 'COFRE LUNAR', '#b8d7ff', 10, true);
+        }
+        audio.playBonfire();
+        particles.addFloatingText(this.player.x + this.player.width / 2, this.player.y - 30, 'CARRERA LUNAR SUPERADA', '#b8d7ff', 10, true);
+        this.saveGame();
+    }
+
+    updateWorld4MoonRace() {
+        const race = this.world4MoonRace;
+        if (!race?.active) return;
+
+        race.timer--;
+        if (race.timer <= 0) {
+            this.failWorld4MoonRace();
+            return;
+        }
+
+        if (race.timer % 60 === 0) {
+            particles.addFloatingText(this.player.x + this.player.width / 2, this.player.y - 34, `${Math.ceil(race.timer / 60)}`, '#b8d7ff', 10, true);
+        }
+    }
+
+    drawWorld4MoonRace() {
+        const race = this.world4MoonRace;
+        if (!race) return;
+
+        const ctx = this.ctx;
+        ctx.save();
+
+        if (!race.completed) {
+            ctx.fillStyle = race.failed ? '#2a1010' : (race.active ? '#132233' : '#161822');
+            ctx.fillRect(race.x, race.y, race.width, race.height);
+            ctx.strokeStyle = race.active ? '#b8d7ff' : (race.failed ? '#ff3333' : '#8aa0b8');
+            ctx.lineWidth = 3;
+            ctx.strokeRect(race.x, race.y, race.width, race.height);
+            ctx.fillStyle = race.active ? '#b8d7ff' : '#d9b36a';
+            ctx.font = "16px 'Press Start 2P', monospace";
+            ctx.textAlign = 'center';
+            ctx.fillText('☾', race.x + race.width / 2, race.y + 38);
+        }
+
+        if (race.finishButton?.visible) {
+            const button = race.finishButton;
+            ctx.fillStyle = '#101826';
+            ctx.fillRect(button.x, button.y + 20, button.width, 12);
+            ctx.strokeStyle = race.completed ? '#ffd700' : '#b8d7ff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(button.x, button.y + 20, button.width, 12);
+            ctx.fillStyle = race.completed ? '#ffd700' : '#b8d7ff';
+            ctx.beginPath();
+            ctx.arc(button.x + button.width / 2, button.y + 12, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#101826';
+            ctx.font = "8px 'Press Start 2P', monospace";
+            ctx.textAlign = 'center';
+            ctx.fillText('E', button.x + button.width / 2, button.y + 15);
+        }
+
+        if (race.active) {
+            ctx.fillStyle = 'rgba(10, 14, 25, 0.64)';
+            ctx.fillRect(this.cameraX + 334, this.cameraY + 18, 292, 34);
+            ctx.strokeStyle = '#b8d7ff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(this.cameraX + 334, this.cameraY + 18, 292, 34);
+            ctx.fillStyle = '#b8d7ff';
+            ctx.font = "10px 'Press Start 2P', monospace";
+            ctx.textAlign = 'center';
+            ctx.fillText(`CARRERA LUNAR ${Math.ceil(race.timer / 60)}s`, this.cameraX + 480, this.cameraY + 41);
+        }
+
+        ctx.restore();
+    }
+
     // ==========================================================================
     // TIENDA Y DESCANSO EN LA HOGUERA
     // ==========================================================================
     handleInteraction() {
         if (this.state !== 'playing') return;
-        
+
+        if (this.activeLoreNote) {
+            this.activeLoreNote = null;
+            audio.playBonfire();
+            return;
+        }
+
+        if (this.level === 15 && this.world3StormLever?.visible && !this.world3StormLever.activated) {
+            const lever = this.world3StormLever;
+            const distX = Math.abs((this.player.x + this.player.width / 2) - (lever.x + lever.width / 2));
+            const distY = Math.abs((this.player.y + this.player.height / 2) - (lever.y + lever.height / 2));
+            if (distX < 65 && distY < 70) {
+                lever.activated = true;
+                this.unlockedStormRelicPuzzle = true;
+                if (this.world3StormChest) {
+                    this.world3StormChest.unlocked = true;
+                    this.world3StormChest.hidden = false;
+                }
+                audio.playThunder();
+                this.shakeTimer = 20;
+                this.shakeIntensity = 3.5;
+                particles.spawnCollectGlow(lever.x + lever.width / 2, lever.y + lever.height / 2, '#d9f6ff', 18);
+                particles.addFloatingText(lever.x + lever.width / 2, lever.y - 18, 'COFRE DEL TRUENO REVELADO', '#d9f6ff', 10, true);
+                if (this.world3StormChest) {
+                    particles.spawnCollectGlow(this.world3StormChest.x + this.world3StormChest.width / 2, this.world3StormChest.y + this.world3StormChest.height / 2, '#9ee8ff', 24);
+                    particles.addFloatingText(this.world3StormChest.x + this.world3StormChest.width / 2, this.world3StormChest.y - 18, 'RELIQUIA', '#9ee8ff', 10, true);
+                }
+                this.saveGame();
+                return;
+            }
+        }
+
+        // Interacción con la palanca de transición del Mundo 4 al 5 (Nivel 26)
+        if (this.level === 26 && this.world5TransitionLever && !this.world5TransitionLever.activated) {
+            const lever = this.world5TransitionLever;
+            const distX = Math.abs((this.player.x + this.player.width/2) - (lever.x + lever.width/2));
+            const distY = Math.abs((this.player.y + this.player.height/2) - (lever.y + lever.height/2));
+            if (distX < 60 && distY < 60) {
+                lever.activated = true;
+                if (this.world5TransitionElevator) {
+                    this.world5TransitionElevator.moving = true;
+                }
+
+                audio.playCrateBreak(); // Sonido metálico
+                audio.playThunder();     // Estruendo sordo
+                this.shakeTimer = 40;
+                this.shakeIntensity = 3.5;
+
+                particles.addFloatingText(lever.x + 12, lever.y - 15, "CLANK!", "#ff5500", 11, true);
+                particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 30, "¡ELEVADOR ACTIVADO!", "#9ee8ff", 12, true);
+
+                return; // Interacción completada
+            }
+        }
+
         // 0. Proximidad a la palanca del Mundo 4
         if (this.level === 22 && this.world4Lever && !this.world4Lever.activated) {
             const lever = this.world4Lever;
@@ -6097,20 +8269,20 @@ class Game {
             const distY = Math.abs((this.player.y + this.player.height/2) - (lever.y + lever.height/2));
             if (distX < 60 && distY < 60) {
                 lever.activated = true;
-                
+
                 // Revelar la puerta secreta hacia la cámara oscura.
                 if (this.world4SecretGate) {
                     this.world4SecretGate.opened = true;
                     this.world4SecretGate.visible = true;
                 }
-                
+
                 // Sonidos y retroalimentación premium
                 audio.playCrateBreak(); // Sonido metálico/crujido
                 audio.playThunder();     // Sonido retumbante/terremoto
-                
+
                 this.shakeTimer = 35;
                 this.shakeIntensity = 4.0;
-                
+
                 // Spawnear partículas en la puerta revelada para mayor impacto visual
                 if (this.world4SecretGate) {
                     const gate = this.world4SecretGate;
@@ -6119,10 +8291,10 @@ class Game {
                         particles.spawnCollectGlow(gate.x + Math.random()*gate.width, gate.y + Math.random()*gate.height, '#00ffff', 2);
                     }
                 }
-                
+
                 particles.addFloatingText(lever.x + 12, lever.y - 15, "CLANK!", "#ff5500", 11, true);
                 particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 30, "¡PUERTA SECRETA REVELADA!", "#9ee8ff", 12, true);
-                
+
                 return; // Interacción completada
             }
         }
@@ -6148,12 +8320,30 @@ class Game {
             }
         }
 
+        if (this.spectralPortals && this.spectralPortals.length > 0) {
+            for (const portal of this.spectralPortals) {
+                const distX = Math.abs((this.player.x + this.player.width / 2) - (portal.x + portal.width / 2));
+                const distY = Math.abs((this.player.y + this.player.height / 2) - (portal.y + portal.height / 2));
+                if (distX < 74 && distY < 92) {
+                    if (portal.teleport(this.player)) {
+                        const destPortal = this.spectralPortals.find(p => p.x === portal.targetX && p.y === portal.targetY);
+                        if (destPortal) destPortal.cooldown = 45;
+                        this.cameraX = Math.max(0, Math.min(this.levelWidth - 960, this.player.x - 960 * 0.35));
+                        this.cameraY = Math.max(540 - this.levelHeight, Math.min(0, this.player.y - 540 * 0.42));
+                    }
+                    return;
+                }
+            }
+        }
+
         for (const tablet of this.loreTablets) {
             const distX = Math.abs((this.player.x + this.player.width / 2) - (tablet.x + tablet.width / 2));
             const distY = Math.abs((this.player.y + this.player.height / 2) - (tablet.y + tablet.height / 2));
             if (distX < 70 && distY < 80) {
-                tablet.read(this.player);
-                audio.playBonfire();
+                if (tablet.secretType === 'storm_puzzle') {
+                    this.revealWorld3StormPuzzle();
+                }
+                this.showLoreNote(tablet);
                 return;
             }
         }
@@ -6185,12 +8375,40 @@ class Game {
             }
         }
 
+        if (this.level === 23 && this.world4MoonRace) {
+            const race = this.world4MoonRace;
+            const playerCX = this.player.x + this.player.width / 2;
+            const playerCY = this.player.y + this.player.height / 2;
+
+            if (race.active && race.finishButton?.visible) {
+                const button = race.finishButton;
+                const distX = Math.abs(playerCX - (button.x + button.width / 2));
+                const distY = Math.abs(playerCY - (button.y + button.height / 2));
+                if (distX < 70 && distY < 85) {
+                    this.completeWorld4MoonRace();
+                    return;
+                }
+            }
+
+            if (!race.completed && !race.active) {
+                const distX = Math.abs(playerCX - (race.x + race.width / 2));
+                const distY = Math.abs(playerCY - (race.y + race.height / 2));
+                if (distX < 82 && distY < 100) {
+                    this.startWorld4MoonRace();
+                    return;
+                }
+            }
+        }
+
         for (const door of this.challengeDoors) {
             if (door.opened) continue;
             const distX = Math.abs((this.player.x + this.player.width / 2) - (door.x + door.width / 2));
             const distY = Math.abs((this.player.y + this.player.height / 2) - (door.y + door.height / 2));
             if (distX < 82 && distY < 100) {
-                if (door.completed) {
+                if (door.failed) {
+                    door.reset(this);
+                    door.start(this);
+                } else if (door.completed) {
                     door.open(this);
                 } else if (!door.started) {
                     door.start(this);
@@ -6198,22 +8416,71 @@ class Game {
                 return;
             }
         }
-        
+
         // 1. Proximidad a los Cofres
         if (this.chests) {
             for (let i = 0; i < this.chests.length; i++) {
                 const chest = this.chests[i];
+                if (chest.hidden) continue;
                 if (!chest.opened) {
                     const distX = Math.abs((this.player.x + this.player.width/2) - (chest.x + chest.width/2));
                     const distY = Math.abs(this.player.y - chest.y);
                     if (distX < 75 && distY < 60) {
+                        if (chest.requiresStormPuzzle && !chest.unlocked) {
+                            particles.addFloatingText(chest.x + chest.width / 2, chest.y - 15, "FALTA LA PALANCA DEL TRUENO", "#d9f6ff", 9, true);
+                            audio.playHit();
+                            return;
+                        }
+                        if (chest.contentType === 'storm_relic') {
+                            chest.opened = true;
+                            this.markChestOpened(chest);
+                            audio.playBonfire();
+                            particles.spawnSparks(chest.x + chest.width / 2, chest.y + chest.height / 2, 15, 0);
+                            this.awardRelic('storm_oath', chest.x + chest.width / 2, chest.y - 15);
+                            particles.addFloatingText(chest.x + chest.width / 2, chest.y - 32, "OPEN!", "#ffd700", 11, true);
+                            this.updateHud();
+                            this.saveGame();
+                            return;
+                        }
+                        if (chest.contentType === 'moon_relic') {
+                            chest.opened = true;
+                            this.markChestOpened(chest);
+                            audio.playBonfire();
+                            particles.spawnSparks(chest.x + chest.width / 2, chest.y + chest.height / 2, 15, 0);
+                            this.awardRelic('moon', chest.x + chest.width / 2, chest.y - 15);
+                            particles.addFloatingText(chest.x + chest.width / 2, chest.y - 32, "OPEN!", "#b8d7ff", 11, true);
+                            this.updateHud();
+                            this.saveGame();
+                            return;
+                        }
+                        if (chest.contentType === 'false_shield') {
+                            chest.opened = true;
+                            this.markChestOpened(chest);
+                            audio.playPortal();
+                            audio.playThunder();
+                            particles.spawnSparks(chest.x + chest.width / 2, chest.y + chest.height / 2, 18, 0);
+                            particles.spawnCollectGlow(chest.x + chest.width / 2, chest.y + chest.height / 2, '#b642f5', 24);
+                            particles.addFloatingText(chest.x + chest.width / 2, chest.y - 22, "COFRE FALSO", "#b642f5", 11, true);
+                            this.player.x = 3220;
+                            this.player.y = this.floorY - 80 - this.player.height;
+                            this.player.vx = 0;
+                            this.player.vy = 0;
+                            this.player.isGrounded = true;
+                            this.cameraX = Math.max(0, Math.min(this.levelWidth - 960, this.player.x - 960 * 0.35));
+                            this.cameraY = Math.max(540 - this.levelHeight, Math.min(0, this.player.y - 540 * 0.42));
+                            particles.spawnCollectGlow(this.player.x + this.player.width / 2, this.player.y + this.player.height / 2, '#8f34d1', 26);
+                            particles.addFloatingText(this.player.x + this.player.width / 2, this.player.y - 30, "CÁMARA DEL ESCUDO", "#9ee8ff", 11, true);
+                            this.updateHud();
+                            this.saveGame();
+                            return;
+                        }
                         const items = chest.open();
                         if (items) {
                             this.markChestOpened(chest);
                             if (chest.contentType === 'shield') {
                                 this.awardReinforcedShield(chest.x + chest.width/2, chest.y - 15);
                             } else {
-                                items.forEach(item => this.lootItems.push(this.normalizeHealthLoot(item)));
+                                items.forEach(item => this.lootItems.push(this.stabilizeKeyLoot(this.normalizeHealthLoot(item), chest)));
                             }
                             this.applyChestEvent(chest);
                             particles.addFloatingText(chest.x + chest.width/2, chest.y - 15, "OPEN!", "#ffd700", 11, true);
@@ -6411,7 +8678,7 @@ class Game {
                     particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 30, "🔓 ¡CERRADURA ABIERTA!", "#00ff66", 14, true);
                     this.updateInventoryUI(); // Retirar la llave del inventario visual
                     this.saveGame();
-                    
+
                     // Transición inmediata al Nivel 17
                     setTimeout(() => {
                         this.enterLevelAtStart(17);
@@ -6446,8 +8713,28 @@ class Game {
             audio.playBonfire();
             particles.addFloatingText(this.player.x, this.player.y - 20, `MUNDO 4-${this.level - 18}`, "#9ee8ff", 12, true);
         } else if (this.level === 25) {
-            // Victoria de la Campaña al superar el Mundo 4-7
-            this.triggerVictory();
+            // Ir al Nivel 26 (Mundo 4-Transition: La Recámara del Ascensor)
+            this.enterLevelAtStart(26);
+            this.saveGame();
+            audio.playBonfire();
+            particles.addFloatingText(this.player.x, this.player.y - 20, "DESCIENDE AL VACÍO...", "#9ee8ff", 12, true);
+        } else if (this.level === 26) {
+            // Ir al Nivel 27 (Mundo 5-1: Umbral del Vacío)
+            this.enterLevelAtStart(27);
+            this.saveGame();
+            audio.playBonfire();
+            particles.addFloatingText(this.player.x, this.player.y - 20, "MUNDO 5-1", "#b642f5", 12, true);
+        } else if (this.level === 30 && !this.player.hasVoidKey) {
+            this.player.x -= this.player.facing * 26;
+            this.player.vx = -this.player.facing * 3.2;
+            audio.playHit();
+            particles.addFloatingText(this.player.x + this.player.width / 2, this.player.y - 30, "FALTA LA LLAVE DEL VACÍO", "#b642f5", 10, true);
+        } else if (this.level >= 27 && this.level <= 33) {
+            // Avanzar al siguiente nivel del Mundo 5
+            this.enterLevelAtStart(this.level + 1);
+            this.saveGame();
+            audio.playBonfire();
+            particles.addFloatingText(this.player.x, this.player.y - 20, `MUNDO 5-${this.level - 26}`, "#b642f5", 12, true);
         }
     }
 
@@ -6474,7 +8761,8 @@ class Game {
     updateShopDetails() {
         this.shopCoins.innerText = this.player.coins.toString().padStart(3, '0');
         this.shopHp.innerText = `${this.player.hp} / ${this.player.maxHp}`;
-        
+        if (this.shopStamina) this.shopStamina.innerText = `${Math.ceil(this.player.stamina)} / ${this.player.maxStamina}`;
+
         // Contadores de Almas
         if (this.shopRedCoins) this.shopRedCoins.innerText = this.player.redCoins.toString();
         if (this.shopGreenCoins) this.shopGreenCoins.innerText = this.player.greenCoins.toString();
@@ -6612,25 +8900,29 @@ class Game {
 
     restAtBonfire() {
         if (this.player.hp <= 0) return;
-        
+
         // Descanso cura 100% vida y estamina gratis
         this.player.hp = this.player.maxHp;
         this.player.stamina = this.player.maxStamina;
-        if (this.acquiredRelics.has('storm_oath')) {
+        if (this.equippedRelics.has('storm_oath')) {
             this.player.thunderRelicReady = true;
         }
-        
+        if (this.equippedRelics.has('moon')) {
+            this.player.lunarGraceReady = true;
+        }
+        this.player.stormRelicJustTriggered = false;
+
         // Reaparecer todos los enemigos, trampas, plataformas y cajas llamando a initLevel para el nivel actual
         this.initLevel(this.level);
 
         this.lootItems = []; // Limpiar monedas sueltas antiguas
-        
+
         audio.playBonfire(); // Sonido de hoguera
         particles.spawnCollectGlow(this.player.x + this.player.width/2, this.player.y + this.player.height/2, '#ff6600', 20);
-        
+
         // Mostrar texto flotante del reset del mundo
         particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 15, "MUNDO REINICIADO", "#ff6600", 11, true);
-        
+
         this.updateHud();
         this.updateShopDetails();
         this.saveGame();
@@ -6658,11 +8950,11 @@ class Game {
         // Realizar compra (se añade al bulto)
         this.player.coins -= potionCost;
         this.player.potions++;
-        
+
         audio.playBonfire(); // Sonido mágico
         particles.spawnCollectGlow(this.player.x + this.player.width/2, this.player.y + this.player.height/2, '#00ff66', 15);
         particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 15, "+1 POCIÓN", "#00ff66", 11, true);
-        
+
         this.updateHud();
         this.updateShopDetails();
         this.saveGame();
@@ -6690,11 +8982,11 @@ class Game {
         this.player.coins -= greatPotionCost;
         this.player.greatPotions++;
         this.greatPotionShopPurchased = true;
-        
+
         audio.playBonfire(); // Sonido mágico
         particles.spawnCollectGlow(this.player.x + this.player.width/2, this.player.y + this.player.height/2, '#aa55ff', 15);
         particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 15, "+1 POCIÓN MAYOR", "#aa55ff", 11, true);
-        
+
         this.updateHud();
         this.updateShopDetails();
         this.saveGame();
@@ -6702,7 +8994,7 @@ class Game {
 
     toggleInventory() {
         if (this.state !== 'playing' || this.isPaused) return;
-        
+
         const isOpen = !this.domInventoryPopup.classList.contains('hidden');
         if (isOpen) {
             this.domInventoryPopup.classList.add('hidden');
@@ -6851,6 +9143,8 @@ class Game {
         if (this.level >= 6 && this.level <= 11) currentWorld = 2;
         else if (this.level >= 12 && this.level <= 18) currentWorld = 3;
         else if (this.level >= 19 && this.level <= 25) currentWorld = 4;
+        else if (this.level >= 26 && this.level <= 34) currentWorld = 5;
+        else if (this.level >= 35) currentWorld = 6;
 
         console.log("Mundo actual detectado:", currentWorld, "para nivel:", this.level);
         this.selectMapWorld(currentWorld);
@@ -6876,7 +9170,7 @@ class Game {
         }
 
         // Resaltar el botón del mundo seleccionado
-        for (let w = 1; w <= 4; w++) {
+        for (let w = 1; w <= 6; w++) {
             const btn = document.getElementById(`btn-map-world-${w}`);
             if (btn) {
                 btn.style.pointerEvents = 'auto';
@@ -6894,7 +9188,9 @@ class Game {
             1: "MUNDO 1: EL PASILLO GÓTICO",
             2: "MUNDO 2: LAS CATACUMBAS ÍGNEAS",
             3: "MUNDO 3: EL SENDERO DEL BOSQUE",
-            4: "MUNDO 4: LA FORTALEZA CELESTE"
+            4: "MUNDO 4: LA FORTALEZA CELESTE",
+            5: "MUNDO 5: EL ESPEJO DEL VACÍO",
+            6: "MUNDO 6: LAS NUBES DEL ALBA NEGRA"
         };
         this.mapWorldTitle.innerText = worldNames[worldNum] || `MUNDO ${worldNum}`;
 
@@ -6933,7 +9229,7 @@ class Game {
 
                 if (isBossUnlocked && isBonfireLit) {
                     btn.style.borderColor = '#00ff66';
-                    
+
                     const tagSpan = document.createElement('span');
                     tagSpan.innerText = "🔥 Hoguera Lista";
                     tagSpan.style.color = '#00ff66';
@@ -6951,7 +9247,7 @@ class Game {
                     btn.style.borderColor = '#442b15';
                     btn.style.opacity = '0.5';
                     btn.style.cursor = 'not-allowed';
-                    
+
                     const tagSpan = document.createElement('span');
                     tagSpan.innerText = "⚠️ Hoguera Apagada";
                     tagSpan.style.color = '#ff9900';
@@ -6963,7 +9259,7 @@ class Game {
                     btn.style.borderColor = '#442222';
                     btn.style.opacity = '0.5';
                     btn.style.cursor = 'not-allowed';
-                    
+
                     const tagSpan = document.createElement('span');
                     tagSpan.innerText = "🔒 Jefe No Derrotado";
                     tagSpan.style.color = '#ff3333';
@@ -6997,21 +9293,28 @@ class Game {
         this.player.hp = this.player.maxHp;
         this.player.stamina = this.player.maxStamina;
 
-        // 2. Actualizar el checkpoint de última hoguera encendida
+        // 2. Teletransportar y reconstruir el nivel para leer la posición real de la hoguera
+        this.enterLevelAtStart(targetLevelNum, spawnX);
+
+        // 3. Actualizar el checkpoint en la base real de la hoguera, incluso si está en una plataforma
+        const bonfireSpawn = this.getBonfireRespawnPoint(spawnX);
         this.latestLitBonfire = {
             level: targetLevelNum,
-            x: spawnX,
-            y: this.floorY - this.player.baseHeight,
+            x: bonfireSpawn.x,
+            y: bonfireSpawn.y,
             lit: true
         };
 
-        // 3. Teletransportar
-        this.enterLevelAtStart(targetLevelNum, spawnX);
-
-        // Actualizar la hoguera de este nivel para que figure encendida en el motor
         if (this.bonfire) {
             this.bonfire.lit = true;
         }
+        this.player.x = Math.max(0, bonfireSpawn.x - 30);
+        this.player.y = bonfireSpawn.y;
+        this.player.vx = 0;
+        this.player.vy = 0;
+        this.player.isGrounded = true;
+        this.cameraX = Math.max(0, Math.min(this.levelWidth - 960, this.player.x - 960 * 0.35));
+        this.cameraY = Math.max(540 - this.levelHeight, Math.min(0, this.player.y - 540 * 0.42));
 
         // 4. Guardar progreso de juego
         this.saveGame();
@@ -7030,7 +9333,11 @@ class Game {
 
 export { Game };
 
-// Inicializar el juego al cargar
-window.addEventListener('load', () => {
+// Inicializar el juego al cargar (con failsafe por si el evento load ya ocurrió)
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
     new Game();
-});
+} else {
+    window.addEventListener('load', () => {
+        new Game();
+    });
+}

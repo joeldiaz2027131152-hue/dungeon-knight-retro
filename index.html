@@ -11,10 +11,30 @@
     <link rel="stylesheet" href="style.css?v=1.2">
 </head>
 <body>
+    <!-- Capturador de Errores Visuales Failsafe -->
+    <script>
+        window.addEventListener('error', function(e) {
+            const errorDiv = document.createElement('div');
+            errorDiv.style.position = 'fixed';
+            errorDiv.style.top = '0';
+            errorDiv.style.left = '0';
+            errorDiv.style.width = '100%';
+            errorDiv.style.backgroundColor = '#6b1111';
+            errorDiv.style.color = '#fff';
+            errorDiv.style.padding = '12px';
+            errorDiv.style.fontFamily = 'monospace';
+            errorDiv.style.fontSize = '12px';
+            errorDiv.style.zIndex = '999999';
+            errorDiv.style.borderBottom = '3px solid #ff3333';
+            errorDiv.style.boxSizing = 'border-box';
+            errorDiv.innerHTML = '<strong>Error del Juego:</strong> ' + e.message + ' en <span style="color:#ffd700;">' + (e.filename ? e.filename.split("/").pop() : "unknown") + ':' + e.lineno + '</span><br><button onclick="localStorage.clear(); location.reload();" style="margin-top:8px; padding:4px 8px; background:#ffd700; color:#000; border:none; font-family:\'Press Start 2P\', monospace; font-size:10px; cursor:pointer; font-weight:bold;">LIMPIAR DATOS Y REINICIAR</button>';
+            document.body.appendChild(errorDiv);
+        });
+    </script>
     <div id="game-container">
         <!-- Filtro CRT Retro -->
         <div class="crt-overlay"></div>
-        
+
         <!-- Canvas del Juego -->
         <canvas id="gameCanvas" width="960" height="540"></canvas>
 
@@ -41,7 +61,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="hud-right" style="pointer-events: auto;">
                 <!-- Botón de Usar Poción Mayor Rápida -->
                 <button id="btn-great-potion-hud" class="hud-pause-btn" style="background-color: rgba(102, 51, 255, 0.15); border-color: #6633ff; position: relative;" title="Poción Mayor (G)"><span style="filter: hue-rotate(240deg);">🧪</span></button>
@@ -62,7 +82,7 @@
                 <!-- POPUP DE INVENTARIO (Bulto flotante - Estilo Souls) -->
                 <div id="inventory-popup" class="inventory-popup-box hidden">
                     <div class="inventory-popup-title">EQUIPAMIENTO</div>
-                    
+
                     <!-- 1. ARMA ACTIVA (Arriba) -->
                     <div class="equipped-weapon-section">
                         <div class="equipped-weapon-label">ARMA PRINCIPAL</div>
@@ -81,7 +101,16 @@
                         </div>
                     </div>
 
-                    <!-- 3. POCIONES / CONSUMIBLES (Abajo del todo) -->
+                    <!-- 3. RELIQUIA ACTIVA -->
+                    <div class="equipped-weapon-section" style="margin-top: 2px;">
+                        <div class="equipped-weapon-label">RELIQUIA</div>
+                        <div id="equipped-relic-slot" class="equipped-weapon-slot" style="border-color: #7a5a22; box-shadow: 0 0 6px rgba(255, 215, 0, 0.2); cursor: pointer;">
+                            <span id="equipped-relic-icon" class="slot-icon">◇</span>
+                            <span id="equipped-relic-name" class="equipped-weapon-name" style="color: #d9b36a;">Sin Reliquia</span>
+                        </div>
+                    </div>
+
+                    <!-- 4. POCIONES / CONSUMIBLES (Abajo del todo) -->
                     <div id="consumables-section-title" class="inventory-popup-title" style="margin-top: 4px; border-bottom: none; font-size: 7px; cursor: pointer;">POCIONES Y CONSUMIBLES</div>
                     <div class="inventory-grid" style="grid-template-columns: repeat(3, 1fr);">
                         <div id="slot-potion" class="inventory-slot active-slot" title="Poción Menor (Cura 25%)">
@@ -118,6 +147,10 @@
                                 <span class="slot-icon">🗝️</span>
                                 <span id="slot-forest-key-qty" class="slot-qty">x0</span>
                             </div>
+                            <div id="slot-void-key" class="inventory-slot empty-slot" title="Llave del Vacío — Abre la salida sellada del Mundo 5-4">
+                                <span class="slot-icon">🗝️</span>
+                                <span id="slot-void-key-qty" class="slot-qty">x0</span>
+                            </div>
                         </div>
                     </div>
 
@@ -148,7 +181,7 @@
                     <div id="boss-hp-shadow" class="boss-bar-fill-shadow" style="width: 100%;"></div>
                 </div>
             </div>
-            
+
             <!-- Indicador de Interacción de la Hoguera -->
             <div id="bonfire-prompt" class="hidden">
                 <button id="btn-interact-bonfire" class="interact-btn animate-pulse">🔥 ABRIR TIENDA / DESCANSAR (PULSA 'E') 🔥</button>
@@ -159,7 +192,7 @@
         <div id="start-menu" class="overlay-screen">
             <h1 class="game-title">DUNGEON KNIGHT</h1>
             <h2 class="game-subtitle">THE SKELETON KING</h2>
-            
+
             <div class="menu-knight-showcase">
                 <!-- Se dibuja un icono o figura decorativa -->
             </div>
@@ -186,7 +219,7 @@
         <div id="game-over-screen" class="overlay-screen hidden">
             <h1 class="game-over-title animate-shake">HAS MUERTO</h1>
             <p class="game-over-subtitle">Tu alma permanece en la mazmorra...</p>
-            
+
             <div class="stats-box">
                 <p>Monedas obtenidas: <span id="stat-coins">0</span></p>
                 <p>Cajas rotas: <span id="stat-crates">0</span></p>
@@ -200,7 +233,7 @@
         <div id="victory-screen" class="overlay-screen hidden">
             <h1 class="victory-title animate-glow">¡VICTORIA!</h1>
             <h2 class="victory-subtitle">EL REY ESQUELETO HA SIDO DESTRUIDO</h2>
-            
+
             <div class="victory-stats-box">
                 <div class="rank-badge animate-scale">RANGO S</div>
                 <p>Tiempo de combate: <span id="stat-time">00:00</span></p>
@@ -216,7 +249,7 @@
             <h1 id="wt-title" class="victory-title animate-glow" style="color: #ffd700; text-shadow: 0 0 15px rgba(255, 215, 0, 0.6), 4px 4px 0px #000; font-size: 16px;">¡MUNDO 1 COMPLETADO!</h1>
             <h2 id="wt-subtitle" class="victory-subtitle" style="color: #ff3333; margin-top: 15px; font-size: 10px;">HAS SUPERADO EL NIVEL 1-5</h2>
             <p id="wt-description" class="game-subtitle" style="font-size: 8px; color: #a0a0b0; margin-top: 10px; margin-bottom: 25px; line-height: 1.6;">Prepárate para el nivel 2-1...<br><span style="color: #ff6600;">Las Catacumbas de Lava</span> te esperan con peligros mayores.</p>
-            
+
             <button id="btn-world-transition-continue" class="btn-retro animate-pulse" style="width: 260px;">CONTINUAR</button>
         </div>
 
@@ -224,7 +257,7 @@
         <div id="pause-screen" class="overlay-screen hidden">
             <h1 class="game-title animate-glow">PAUSA</h1>
             <p class="game-subtitle">El juego está suspendido</p>
-            
+
             <div class="menu-buttons-vertical">
                 <button id="btn-resume" class="btn-retro">CONTINUAR</button>
                 <button id="btn-mute" class="btn-retro">SONIDO: ON</button>
@@ -237,11 +270,14 @@
         <div id="bonfire-screen" class="overlay-screen hidden">
             <h1 class="game-title animate-glow" style="color: #ff6600; text-shadow: 0 0 15px rgba(255,102,0,0.6), 4px 4px 0px #000; font-size: 32px; margin-bottom: 0px;">LA HOGUERA</h1>
             <p class="game-subtitle" style="color: #ffd700; margin-bottom: 12px; font-size: 8px; letter-spacing: 2px;">DESCANSO Y TIENDA MÁGICA</p>
-            
+
             <div class="stats-box" style="border-color: #ff6600; background: rgba(15, 10, 5, 0.85); width: 660px; margin-bottom: 12px; padding: 10px 20px;">
                 <p style="margin: 4px 0; display: flex; justify-content: space-between; font-size: 8px; width: 100%; color: #d0d0e0;">
                     <span>🪙 Monedas: <span id="shop-coins" style="color: #ffd700;">000</span></span>
-                    <span>Tu HP: <span id="shop-hp" style="color: #ff3333;">100 / 100</span></span>
+                    <span style="display: flex; flex-direction: column; gap: 4px;">
+                        <span>Tu HP: <span id="shop-hp" style="color: #ff3333;">100 / 100</span></span>
+                        <span>Tu ST: <span id="shop-stamina" style="color: #00cc66;">100 / 100</span></span>
+                    </span>
                     <span>🔴 Rojas: <span id="shop-red-coins" style="color: #ff3333; font-weight: bold;">0</span></span>
                     <span>🟢 Verdes: <span id="shop-green-coins" style="color: #00ff66; font-weight: bold;">0</span></span>
                     <span>⚪ Grises: <span id="shop-grey-coins" style="color: #b0b0b0; font-weight: bold;">0</span></span>
@@ -271,21 +307,23 @@
         <div id="magic-map-screen" class="overlay-screen hidden" style="background: rgba(10, 8, 12, 0.95); z-index: 11000 !important; pointer-events: auto !important; display: flex; flex-direction: column; align-items: center; justify-content: center;">
             <h1 class="game-title animate-glow" style="color: #9ee8ff; text-shadow: 0 0 15px rgba(158, 232, 255, 0.5), 4px 4px 0px #000; font-size: 28px; margin-bottom: 5px;">MAPA MÁGICO</h1>
             <p class="game-subtitle" style="color: #a0a0b0; font-size: 8px; margin-bottom: 20px; letter-spacing: 2px;">VIAJE RÁPIDO ENTRE HOGUERAS ENCENDIDAS</p>
-            
+
             <div id="map-worlds-selector" class="menu-buttons-vertical" style="flex-direction: row; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; justify-content: center; width: 85%; pointer-events: auto !important;">
                 <button id="btn-map-world-1" class="btn-retro" style="width: 160px; font-size: 8px; line-height: 1.4; pointer-events: auto !important;" onclick="if(window.gameInstance) window.gameInstance.selectMapWorld(1);">MUNDO 1<br><span style="font-size: 6px; color: #a0a0b0; pointer-events: none;">PASILLO GÓTICO</span></button>
                 <button id="btn-map-world-2" class="btn-retro" style="width: 160px; font-size: 8px; line-height: 1.4; pointer-events: auto !important;" onclick="if(window.gameInstance) window.gameInstance.selectMapWorld(2);">MUNDO 2<br><span style="font-size: 6px; color: #ff6600; pointer-events: none;">CATACUMBAS ÍGNEAS</span></button>
                 <button id="btn-map-world-3" class="btn-retro" style="width: 160px; font-size: 8px; line-height: 1.4; pointer-events: auto !important;" onclick="if(window.gameInstance) window.gameInstance.selectMapWorld(3);">MUNDO 3<br><span style="font-size: 6px; color: #00ff66; pointer-events: none;">SENDERO DEL BOSQUE</span></button>
                 <button id="btn-map-world-4" class="btn-retro" style="width: 160px; font-size: 8px; line-height: 1.4; pointer-events: auto !important;" onclick="if(window.gameInstance) window.gameInstance.selectMapWorld(4);">MUNDO 4<br><span style="font-size: 6px; color: #9ee8ff; pointer-events: none;">FORTALEZA CELESTE</span></button>
+                <button id="btn-map-world-5" class="btn-retro" style="width: 160px; font-size: 8px; line-height: 1.4; pointer-events: auto !important;" onclick="if(window.gameInstance) window.gameInstance.selectMapWorld(5);">MUNDO 5<br><span style="font-size: 6px; color: #b642f5; pointer-events: none;">ESPEJO DEL VACÍO</span></button>
+                <button id="btn-map-world-6" class="btn-retro" style="width: 160px; font-size: 8px; line-height: 1.4; pointer-events: auto !important;" onclick="if(window.gameInstance) window.gameInstance.selectMapWorld(6);">MUNDO 6<br><span style="font-size: 6px; color: #ffffff; pointer-events: none;">CIELO POSEÍDO</span></button>
             </div>
-            
+
             <div id="map-levels-container" style="display: flex; flex-direction: column; align-items: center; width: 85%; max-height: 220px; overflow-y: auto; background: rgba(20, 18, 24, 0.8); border: 2px solid #3a3a4c; border-radius: 6px; padding: 15px; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); margin-bottom: 20px; pointer-events: auto !important;">
                 <div id="map-world-title" style="font-family: 'Press Start 2P', monospace; font-size: 10px; color: #ffd700; margin-bottom: 15px; border-bottom: 1px solid #3a3a4c; padding-bottom: 8px; width: 100%; text-align: center;">SELECCIONA UN MUNDO</div>
                 <div id="map-levels-list" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; pointer-events: auto !important;">
                     <!-- Poblar dinámicamente -->
                 </div>
             </div>
-            
+
             <button id="btn-map-close" class="btn-retro" style="background-color: #2a1515; border-color: #3e2723; width: 200px; font-size: 9px; padding: 10px; pointer-events: auto !important;" onclick="if(window.gameInstance) window.gameInstance.closeMagicMap();">CERRAR MAPA</button>
         </div>
 

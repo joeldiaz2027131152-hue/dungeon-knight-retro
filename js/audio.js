@@ -174,7 +174,7 @@ class RetroAudio {
 
         const now = this.ctx.currentTime;
         const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50]; // Acorde Do Mayor ascendente
-        
+
         notes.forEach((freq, idx) => {
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
@@ -298,6 +298,101 @@ class RetroAudio {
         });
     }
 
+    // Efecto de Sonido: Portal Espectral (Arpegio descendente rápido y misterioso)
+    playPortal() {
+        this.init();
+        if (this.isMuted || !this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const notes = [880, 660, 440, 330, 220]; // descendente misterioso
+        notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            const noteStart = now + (idx * 0.05);
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, noteStart);
+            osc.frequency.linearRampToValueAtTime(freq * 0.8, noteStart + 0.15);
+
+            gain.gain.setValueAtTime(0.0, now);
+            gain.gain.setValueAtTime(0.08, noteStart);
+            gain.gain.exponentialRampToValueAtTime(0.001, noteStart + 0.15);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+
+            osc.start(noteStart);
+            osc.stop(noteStart + 0.15);
+        });
+    }
+
+    // Efecto de Sonido: Daño de Wraith Espectral (Chillido espectral metálico de frecuencia alta)
+    playWraithHurt() {
+        this.init();
+        if (this.isMuted || !this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const duration = 0.25;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(1200, now);
+        osc.frequency.exponentialRampToValueAtTime(300, now + duration);
+
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.setValueAtTime(800, now);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start();
+        osc.stop(now + duration);
+    }
+
+    // Efecto de Sonido: Ascensor del Vacío (Chirrido rítmico de tensión de cadenas metálicas)
+    playElevator() {
+        this.init();
+        if (this.isMuted || !this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(80, now);
+        osc.frequency.linearRampToValueAtTime(40, now + 0.3);
+
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+        // Choque de cadenas metálicas agudo
+        const metalPing = this.ctx.createOscillator();
+        metalPing.type = 'sine';
+        metalPing.frequency.setValueAtTime(1500, now);
+        metalPing.frequency.linearRampToValueAtTime(800, now + 0.1);
+
+        const metalGain = this.ctx.createGain();
+        metalGain.gain.setValueAtTime(0.03, now);
+        metalGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        metalPing.connect(metalGain);
+        metalGain.connect(this.ctx.destination);
+
+        osc.start();
+        metalPing.start();
+        osc.stop(now + 0.3);
+        metalPing.stop(now + 0.3);
+    }
+
     // Efecto de Sonido: Trueno procedimental (Ruido sordo con filtro de paso bajo muy profundo y sub-graves sawtooth)
     playThunder() {
         this.init();
@@ -376,17 +471,17 @@ class RetroAudio {
         const playNote = () => {
             if (this.isMuted || !this.musicPlaying) return;
             const now = this.ctx.currentTime;
-            
+
             // 1. Play Bass Note (Onda triangular suave)
             const bassFreq = bassLine[step % bassLine.length];
             const bassOsc = this.ctx.createOscillator();
             const bassGain = this.ctx.createGain();
-            
+
             bassOsc.type = 'triangle';
             bassOsc.frequency.setValueAtTime(bassFreq, now);
             bassGain.gain.setValueAtTime(0.12, now);
             bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-            
+
             bassOsc.connect(bassGain);
             bassGain.connect(this.ctx.destination);
             bassOsc.start(now);
@@ -397,17 +492,17 @@ class RetroAudio {
             if (leadFreq > 0) {
                 const leadOsc = this.ctx.createOscillator();
                 const leadGain = this.ctx.createGain();
-                
+
                 leadOsc.type = 'square';
                 leadOsc.frequency.setValueAtTime(leadFreq, now);
-                
+
                 // Efecto de vibrato sutil
                 leadOsc.frequency.linearRampToValueAtTime(leadFreq * 1.01, now + 0.08);
                 leadOsc.frequency.linearRampToValueAtTime(leadFreq * 0.99, now + 0.15);
 
                 leadGain.gain.setValueAtTime(0.04, now);
                 leadGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-                
+
                 leadOsc.connect(leadGain);
                 leadGain.connect(this.ctx.destination);
                 leadOsc.start(now);
