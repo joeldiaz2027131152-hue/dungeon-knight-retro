@@ -1725,8 +1725,8 @@ export class TreasureChest {
 
         const items = [];
         if (this.contentType === 'coins') {
-            // Un botín de exactamente 5 monedas
-            const coinsCount = 5;
+            // Un botín de monedas configurable por cofre.
+            const coinsCount = this.coinCount ?? 5;
             for (let i = 0; i < coinsCount; i++) {
                 items.push(new LootItem(this.x + this.width/2 - 8, this.y - 10, 'coin'));
             }
@@ -2680,6 +2680,10 @@ export class SpectralWraith {
         this.targetX = x;
 
         this.chaseRange = variant === 'staff' ? 620 : 500;
+        this.magicShotCount = 0;
+        this.laserTimer = 0;
+        this.laserData = null;
+        this.laserDamageApplied = false;
     }
 
     update(player, game = null) {
@@ -2699,6 +2703,7 @@ export class SpectralWraith {
 
             this.facing = dx < 0 ? -1 : 1;
             this.targetX = player.x;
+            this.updateBlueLaser(player);
 
             if (dist < this.chaseRange) {
                 if (this.variant === 'staff') {
@@ -2707,8 +2712,19 @@ export class SpectralWraith {
                     this.y += (dy / dist) * this.speed * 0.45;
 
                     if (this.attackCooldown <= 0 && game) {
-                        this.attackCooldown = 135 + Math.random() * 70;
-                        game.arrows.push(new FatuoProjectile(this.x + this.width/2, this.y + this.height/2, player, 'blue_fire'));
+                        this.attackCooldown = this.isMiniBoss ? 112 : 135 + Math.random() * 70;
+                        const projectile = new FatuoProjectile(this.x + this.width/2, this.y + this.height/2, player, 'blue_fire');
+                        if (this.isMiniBoss) {
+                            projectile.speed = 2.2;
+                            projectile.damage = 10;
+                        }
+                        game.arrows.push(projectile);
+                        this.magicShotCount++;
+                        if (this.isMiniBoss && this.magicShotCount >= 10) {
+                            this.magicShotCount = 0;
+                            this.startBlueLaser(player);
+                            this.attackCooldown = 175;
+                        }
                         audio.playPortal();
                     }
                 } else {
@@ -2720,6 +2736,63 @@ export class SpectralWraith {
                 // Patrullar sinusoidal
                 this.x += Math.sin(this.floatTimer * 0.5) * 0.85;
             }
+        }
+    }
+
+    startBlueLaser(player) {
+        const startX = this.x + this.width / 2;
+        const startY = this.y + this.height / 2;
+        const targetX = player.x + player.width / 2;
+        const targetY = player.y + player.height / 2;
+        const dx = targetX - startX;
+        const dy = targetY - startY;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const range = 980;
+
+        this.laserTimer = 50;
+        this.laserDamageApplied = false;
+        this.laserData = {
+            x1: startX,
+            y1: startY,
+            x2: startX + (dx / dist) * range,
+            y2: startY + (dy / dist) * range
+        };
+
+        particles.addFloatingText(startX, startY - 36, 'RAYO DEL VACIO', '#72d7ff', 10, true);
+        audio.playThunder();
+    }
+
+    updateBlueLaser(player) {
+        if (!this.laserTimer || !this.laserData) return;
+
+        this.laserTimer--;
+        if (this.laserTimer <= 0) {
+            this.laserData = null;
+            this.laserDamageApplied = false;
+            return;
+        }
+
+        const isFiring = this.laserTimer < 30;
+        if (!isFiring || this.laserDamageApplied || !player || player.invincibleTimer > 0) return;
+
+        const px = player.x + player.width / 2;
+        const py = player.y + player.height / 2;
+        const { x1, y1, x2, y2 } = this.laserData;
+        const segX = x2 - x1;
+        const segY = y2 - y1;
+        const segLenSq = segX * segX + segY * segY || 1;
+        const t = Math.max(0, Math.min(1, ((px - x1) * segX + (py - y1) * segY) / segLenSq));
+        const closestX = x1 + segX * t;
+        const closestY = y1 + segY * t;
+        const hitDx = px - closestX;
+        const hitDy = py - closestY;
+        const hitRadius = 30;
+
+        if (hitDx * hitDx + hitDy * hitDy <= hitRadius * hitRadius) {
+            this.laserDamageApplied = true;
+            const knockDir = px > x1 ? 5.5 : -5.5;
+            player.takeDamage(24, knockDir, x1);
+            particles.spawnSparks(px, py, 16, knockDir > 0 ? 1 : -1);
         }
     }
 
@@ -2744,6 +2817,31 @@ export class SpectralWraith {
 
     draw(ctx) {
         if (!this.active) return;
+
+        if (this.laserData && this.laserTimer > 0) {
+            ctx.save();
+            const { x1, y1, x2, y2 } = this.laserData;
+            const isFiring = this.laserTimer < 30;
+            ctx.globalAlpha = isFiring ? 0.9 : 0.35;
+            ctx.strokeStyle = isFiring ? '#72d7ff' : 'rgba(114, 215, 255, 0.65)';
+            ctx.lineWidth = isFiring ? 14 + Math.sin(this.floatTimer * 5) * 2 : 4;
+            ctx.shadowBlur = isFiring ? 22 : 10;
+            ctx.shadowColor = '#00cfff';
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            if (isFiring) {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
         ctx.save();
         ctx.translate(this.x + this.width/2, this.y + this.height/2);
         const scale = this.isMiniBoss ? 1.45 : 1;
@@ -2880,6 +2978,228 @@ export class FatuoProjectile {
         ctx.beginPath();
         ctx.arc(cx, cy, 8 + pulse, 0, Math.PI * 2);
         ctx.fill();
+
+        ctx.restore();
+    }
+}
+
+export class WhiteKnight {
+    constructor(x, y, variant = 'blade', customDrop = null) {
+        this.x = x;
+        this.y = y;
+        this.width = variant === 'champion' ? 50 : 40;
+        this.height = variant === 'champion' ? 66 : 58;
+        this.variant = variant;
+        this.maxHp = variant === 'champion' ? 260 : (variant === 'heavy' ? 150 : 105);
+        this.hp = this.maxHp;
+        this.active = true;
+        this.damage = variant === 'champion' ? 18 : (variant === 'heavy' ? 14 : 12);
+        this.vx = -1.1;
+        this.vy = 0;
+        this.gravity = 0.48;
+        this.facing = -1;
+        this.speed = variant === 'champion' ? 1.85 : (variant === 'heavy' ? 1.25 : 1.55);
+        this.chaseRange = variant === 'champion' ? 700 : 580;
+        this.hurtTimer = 0;
+        this.animTime = Math.random() * 100;
+        this.customDrop = customDrop;
+        this.isFlyingEnemy = false;
+    }
+
+    update(player) {
+        if (!this.active) return;
+        if (this.hurtTimer > 0) this.hurtTimer--;
+        this.animTime++;
+
+        this.vy += this.gravity;
+
+        if (player) {
+            const dx = (player.x + player.width / 2) - (this.x + this.width / 2);
+            const dy = (player.y + player.height / 2) - (this.y + this.height / 2);
+            const seesPlayer = Math.abs(dx) < this.chaseRange && Math.abs(dy) < 190;
+
+            if (seesPlayer) {
+                this.facing = dx >= 0 ? 1 : -1;
+                this.vx = this.facing * this.speed;
+                if (Math.abs(dx) < 58) this.vx *= 0.25;
+            }
+        }
+
+        this.x += this.vx;
+        this.y += this.vy;
+    }
+
+    takeDamage(amount = 10) {
+        if (!this.active) return null;
+        this.hp = Math.max(0, this.hp - amount);
+        this.hurtTimer = 12;
+        audio.playHit();
+        particles.spawnSparks(this.x + this.width / 2, this.y + this.height / 2, 10, this.facing);
+        particles.addFloatingText(this.x + this.width / 2, this.y - 10, `-${amount}`, '#ff3333', 9, false);
+
+        if (this.hp > 0) return null;
+
+        this.active = false;
+        audio.playDeath();
+        particles.spawnEnemyHit(this.x + this.width / 2, this.y + this.height / 2, 14, false);
+        particles.addFloatingText(this.x + this.width / 2, this.y - 16, 'PURIFICADO', '#ffffff', 10, true);
+        return new LootItem(this.x + this.width / 2 - 8, this.y + this.height - 14, this.customDrop || 'coin');
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        ctx.save();
+        if (this.hurtTimer > 0) ctx.globalAlpha = 0.62;
+        ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+        ctx.scale(this.facing, 1);
+
+        const heavy = this.variant === 'heavy' || this.variant === 'champion';
+        const champion = this.variant === 'champion';
+        const glow = 0.12 + Math.sin(this.animTime * 0.08) * 0.04;
+        ctx.fillStyle = `rgba(255, 255, 255, ${glow})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, champion ? 42 : 31, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Capa negra: el aura poseida del castillo blanco.
+        ctx.fillStyle = champion ? '#160b23' : '#1b1a22';
+        ctx.fillRect(-this.width / 2 + 4, -18, this.width - 8, this.height - 12);
+
+        ctx.fillStyle = heavy ? '#f4f7ff' : '#dfe8ff';
+        ctx.fillRect(-14, -24, 28, 38);
+        ctx.fillStyle = '#b8c9e8';
+        ctx.fillRect(-10, -20, 20, 7);
+        ctx.fillRect(-12, 3, 24, 7);
+
+        ctx.fillStyle = '#f8fbff';
+        ctx.fillRect(-12, -36, 24, 16);
+        ctx.fillStyle = champion ? '#ff3333' : '#00d9ff';
+        ctx.fillRect(-7, -30, 4, 3);
+        ctx.fillRect(3, -30, 4, 3);
+
+        ctx.strokeStyle = champion ? '#ff5577' : '#d9f6ff';
+        ctx.lineWidth = champion ? 5 : 3.5;
+        ctx.beginPath();
+        ctx.moveTo(13, -4);
+        ctx.lineTo(champion ? 43 : 31, champion ? -26 : -19);
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(champion ? 39 : 28, champion ? -31 : -22, champion ? 10 : 7, champion ? 9 : 6);
+
+        if (heavy) {
+            ctx.fillStyle = champion ? '#2d0d16' : '#d8e1f5';
+            ctx.fillRect(-28, -12, 12, 28);
+            ctx.strokeStyle = champion ? '#ff5577' : '#93a8cb';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-28, -12, 12, 28);
+        }
+
+        ctx.restore();
+    }
+}
+
+export class WingedWhiteKnight {
+    constructor(x, y, variant = 'blade', customDrop = null) {
+        this.x = x;
+        this.y = y;
+        this.baseY = y;
+        this.width = variant === 'mini' ? 54 : 42;
+        this.height = variant === 'mini' ? 64 : 48;
+        this.variant = variant;
+        this.maxHp = variant === 'mini' ? 340 : (variant === 'heavy' ? 150 : 115);
+        this.hp = this.maxHp;
+        this.active = true;
+        this.damage = variant === 'mini' ? 17 : 13;
+        this.facing = -1;
+        this.speed = variant === 'mini' ? 2.1 : 1.85;
+        this.chaseRange = variant === 'mini' ? 760 : 640;
+        this.hurtTimer = 0;
+        this.animTime = Math.random() * 100;
+        this.customDrop = customDrop;
+        this.isFlyingEnemy = true;
+    }
+
+    update(player) {
+        if (!this.active) return;
+        if (this.hurtTimer > 0) this.hurtTimer--;
+        this.animTime++;
+
+        if (player) {
+            const dx = (player.x + player.width / 2) - (this.x + this.width / 2);
+            const dy = (player.y + player.height / 2) - (this.y + this.height / 2);
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            this.facing = dx >= 0 ? 1 : -1;
+
+            if (dist < this.chaseRange) {
+                this.x += (dx / dist) * this.speed;
+                this.y += (dy / dist) * this.speed * 0.88;
+                return;
+            }
+        }
+
+        this.y += Math.sin(this.animTime * 0.06) * 0.55;
+        this.x += Math.sin(this.animTime * 0.035) * 0.55;
+    }
+
+    takeDamage(amount = 10) {
+        if (!this.active) return null;
+        this.hp = Math.max(0, this.hp - amount);
+        this.hurtTimer = 12;
+        audio.playHit();
+        particles.spawnSparks(this.x + this.width / 2, this.y + this.height / 2, 12, this.facing);
+        particles.addFloatingText(this.x + this.width / 2, this.y - 12, `-${amount}`, '#ff3333', 9, false);
+
+        if (this.hp > 0) return null;
+
+        this.active = false;
+        audio.playDeath();
+        particles.spawnCollectGlow(this.x + this.width / 2, this.y + this.height / 2, '#ffffff', 16);
+        particles.addFloatingText(this.x + this.width / 2, this.y - 16, this.variant === 'mini' ? 'ALMA LIBERADA' : 'PURIFICADO', '#ffffff', 10, true);
+        return new LootItem(this.x + this.width / 2 - 8, this.y + this.height - 12, this.customDrop || 'coin');
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        ctx.save();
+        if (this.hurtTimer > 0) ctx.globalAlpha = 0.62;
+        ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+        ctx.scale(this.facing, 1);
+
+        const mini = this.variant === 'mini';
+        const flap = Math.sin(this.animTime * 0.18) * 7;
+        ctx.fillStyle = mini ? 'rgba(255, 80, 120, 0.16)' : 'rgba(255, 255, 255, 0.18)';
+        ctx.beginPath();
+        ctx.arc(0, 0, mini ? 46 : 34, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#f5f8ff';
+        ctx.beginPath();
+        ctx.moveTo(-12, -8);
+        ctx.lineTo(-38, -22 - flap);
+        ctx.lineTo(-30, 10 + flap);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(12, -8);
+        ctx.lineTo(38, -22 - flap);
+        ctx.lineTo(30, 10 + flap);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = mini ? '#162033' : '#dfe8ff';
+        ctx.fillRect(-12, -20, 24, 36);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(-10, -32, 20, 14);
+        ctx.fillStyle = mini ? '#ff3333' : '#00d9ff';
+        ctx.fillRect(-6, -27, 3, 3);
+        ctx.fillRect(3, -27, 3, 3);
+
+        ctx.strokeStyle = mini ? '#ff5577' : '#d9f6ff';
+        ctx.lineWidth = mini ? 4.5 : 3.2;
+        ctx.beginPath();
+        ctx.moveTo(10, -1);
+        ctx.lineTo(mini ? 36 : 27, mini ? -23 : -17);
+        ctx.stroke();
 
         ctx.restore();
     }

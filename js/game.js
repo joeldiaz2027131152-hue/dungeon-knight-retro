@@ -5,8 +5,8 @@
 import { audio } from './audio.js';
 import { particles } from './particles.js';
 import { Knight } from './knight.js';
-import { Crate, Spikes, CeilingBlade, BatEnemy, SkeletonMinion, Platform, FireTrap, SkeletonArcher, SecretDoor, TreasureChest, LootItem, LavaStalactite, GoblinSwordsman, GoblinArcher, ChasingBird, SpectralPortal, VoidPlatform, SpectralWraith } from './enemies.js';
-import { SkeletonBoss, FireDemonBoss, GiantGoblinBoss, SkySentinelMiniBoss, FallenAngelBoss, DoppelgangerBoss } from './boss.js';
+import { Crate, Spikes, CeilingBlade, BatEnemy, SkeletonMinion, Platform, FireTrap, SkeletonArcher, SecretDoor, TreasureChest, LootItem, LavaStalactite, GoblinSwordsman, GoblinArcher, ChasingBird, SpectralPortal, VoidPlatform, SpectralWraith, WhiteKnight, WingedWhiteKnight } from './enemies.js';
+import { SkeletonBoss, FireDemonBoss, GiantGoblinBoss, SkySentinelMiniBoss, FallenAngelBoss, DoppelgangerBoss, WhiteArchonBoss } from './boss.js';
 
 class WindCurrent {
     constructor(x, y, width, height, strength = -1.15, duration = null) {
@@ -576,6 +576,9 @@ class ChallengeDoor {
         this.finalEnemy = null;
         this.finalSpawned = false;
         this.playerHpOnStart = null;
+        this.instantRewardClaimed = false;
+        this.waveIndex = -1;
+        this.currentWaveEnemies = [];
     }
 
     start(game) {
@@ -587,13 +590,40 @@ class ChallengeDoor {
         audio.playThunder();
         particles.addFloatingText(this.x + this.width / 2, this.y - 18, this.label, '#ffd700', 9, true);
 
-        if (this.type === 'defeat' || this.options.enemies) {
+        if (this.options.waves?.length) {
+            this.spawnWave(game, 0);
+        } else if (this.type === 'defeat' || this.options.enemies) {
             const enemies = this.options.enemies || [
                 new SkeletonMinion(this.x - 90, this.y + this.height - 54),
                 new SkeletonMinion(this.x + 120, this.y + this.height - 54)
             ];
             enemies.forEach(enemy => this.addChallengeEnemy(game, enemy));
         }
+    }
+
+    spawnWave(game, waveIndex) {
+        const wave = this.options.waves?.[waveIndex];
+        if (!wave) return;
+
+        this.waveIndex = waveIndex;
+        this.currentWaveEnemies = [];
+
+        const enemies = typeof wave.enemies === 'function' ? wave.enemies(game) : (wave.enemies || []);
+        const offsets = wave.offsets || [-150, 150, -230, 230, -310, 310];
+        enemies.forEach((enemy, index) => {
+            if (wave.nearPlayer && game.player) {
+                const offset = offsets[index % offsets.length];
+                enemy.spawnX = Math.max(80, Math.min(game.levelWidth - 120, game.player.x + offset));
+                enemy.spawnY = Math.min(game.player.y, game.floorY - enemy.height);
+                enemy.spawnVx = offset < 0 ? 1.1 : -1.1;
+            }
+            this.addChallengeEnemy(game, enemy);
+            this.currentWaveEnemies.push(enemy);
+        });
+
+        audio.playThunder();
+        particles.spawnCollectGlow(this.x + this.width / 2, this.y + this.height / 2, '#ffd700', 14);
+        particles.addFloatingText(this.x + this.width / 2, this.y - 26, wave.label || `HORDA ${waveIndex + 1}`, '#ffd700', 9, true);
     }
 
     addChallengeEnemy(game, enemy) {
@@ -610,7 +640,9 @@ class ChallengeDoor {
         enemy.active = true;
         enemy.challengeId = this.id;
         this.spawnedEnemies.push(enemy);
-        if (enemy instanceof SkeletonArcher || enemy instanceof GoblinArcher) {
+        if (enemy.isFlyingEnemy) {
+            game.windSentinels.push(enemy);
+        } else if (enemy instanceof SkeletonArcher || enemy instanceof GoblinArcher) {
             game.archers.push(enemy);
         } else {
             game.skeletons.push(enemy);
@@ -644,6 +676,18 @@ class ChallengeDoor {
                 particles.addFloatingText(this.x + this.width / 2, this.y - 22, `${Math.ceil(this.timer / 60)}s`, '#9ee8ff', 8, false);
             }
         } else if (this.type === 'defeat') {
+            if (this.options.waves?.length) {
+                const currentWaveDefeated = this.currentWaveEnemies.every(enemy => !enemy.active || enemy.hp <= 0);
+                if (currentWaveDefeated) {
+                    if (this.waveIndex < this.options.waves.length - 1) {
+                        this.spawnWave(game, this.waveIndex + 1);
+                    } else {
+                        this.complete(game);
+                    }
+                }
+                return;
+            }
+
             const firstWaveDefeated = this.spawnedEnemies
                 .filter(enemy => enemy !== this.finalEnemy)
                 .every(enemy => !enemy.active || enemy.hp <= 0);
@@ -664,6 +708,7 @@ class ChallengeDoor {
         const spawned = new Set(this.spawnedEnemies);
         game.skeletons = game.skeletons.filter(enemy => !spawned.has(enemy));
         game.archers = game.archers.filter(enemy => !spawned.has(enemy));
+        game.windSentinels = game.windSentinels.filter(enemy => !spawned.has(enemy));
         this.spawnedEnemies.forEach(enemy => {
             enemy.active = false;
             enemy.challengeId = null;
@@ -671,6 +716,9 @@ class ChallengeDoor {
         this.spawnedEnemies = [];
         this.finalEnemy = null;
         this.finalSpawned = false;
+        this.instantRewardClaimed = false;
+        this.waveIndex = -1;
+        this.currentWaveEnemies = [];
     }
 
     fail(game) {
@@ -699,7 +747,33 @@ class ChallengeDoor {
         if (this.options.cleanupOnComplete) {
             this.cleanupSpawned(game);
         }
+        if (this.options.instantReward && !this.instantRewardClaimed && game.player) {
+            this.instantRewardClaimed = true;
+            if (this.options.instantReward === 'green_coin') {
+                game.player.greenCoins++;
+                particles.spawnCollectGlow(this.x + this.width / 2, this.y + this.height / 2, '#00ff66', 16);
+                particles.addFloatingText(this.x + this.width / 2, this.y - 36, 'ALMA VERDE OBTENIDA', '#00ff66', 11, true);
+            } else if (this.options.instantReward === 'red_coin') {
+                game.player.redCoins++;
+                particles.spawnCollectGlow(this.x + this.width / 2, this.y + this.height / 2, '#ff3333', 16);
+                particles.addFloatingText(this.x + this.width / 2, this.y - 36, 'ALMA ROJA OBTENIDA', '#ff3333', 11, true);
+            } else if (this.options.instantReward === 'grey_coin') {
+                game.player.greyCoins++;
+                particles.spawnCollectGlow(this.x + this.width / 2, this.y + this.height / 2, '#b0b0b0', 16);
+                particles.addFloatingText(this.x + this.width / 2, this.y - 36, 'ALMA GRIS OBTENIDA', '#b0b0b0', 11, true);
+            }
+            game.updateInventoryUI();
+        }
+        if (this.options.coinRewardOnComplete) {
+            for (let i = 0; i < this.options.coinRewardOnComplete; i++) {
+                game.lootItems.push(new LootItem(this.x + this.width / 2 - 8, this.y + 10, 'coin'));
+            }
+        }
         game.completedChallenges.add(this.id);
+        if (this.options.autoOpenOnComplete) {
+            this.opened = true;
+            game.openedChallengeDoors.add(this.id);
+        }
         audio.playBonfire();
         particles.spawnCollectGlow(this.x + this.width / 2, this.y + this.height / 2, '#ffd700', 22);
         particles.addFloatingText(this.x + this.width / 2, this.y - 18, 'DESAFÍO SUPERADO', '#ffd700', 10, true);
@@ -714,12 +788,17 @@ class ChallengeDoor {
         audio.playBonfire();
         particles.spawnCollectGlow(this.x + this.width / 2, this.y + this.height / 2, '#ffd700', 18);
 
-        if (this.reward.startsWith('relic:')) {
+        if (this.reward === 'none') {
+            // Algunos retos entregan el premio directamente al derrotar al enemigo final.
+        } else if (this.reward.startsWith('relic:')) {
             const relicId = this.reward.split(':')[1];
             game.awardRelic(relicId, this.x + this.width / 2, this.y - 10);
         } else {
-            const type = this.reward === 'great_potion' ? 'great_heart' : (this.reward === 'violet_berry' ? 'violet_berry' : 'coin');
-            const count = this.reward === 'coins' ? (this.options.coinReward || 8) : 1;
+            const type = this.reward === 'great_potion' ? 'great_heart' :
+                (this.reward === 'violet_berry' ? 'violet_berry' :
+                (this.reward === 'green_coin' ? 'green_coin' :
+                (this.reward === 'grey_coin' ? 'grey_coin' : 'coin')));
+            const count = this.reward === 'coins' ? (this.options.coinReward ?? 8) : 1;
             for (let i = 0; i < count; i++) {
                 game.lootItems.push(new LootItem(this.x + this.width / 2 - 8, this.y + 10, type));
             }
@@ -835,14 +914,23 @@ class Game {
                 { levelNum: 27, name: "Nivel 5-1 (Umbral del Vacío)", hasBonfire: true, spawnX: 120 },
                 { levelNum: 28, name: "Nivel 5-2 (Catacumbas de Cristal)", hasBonfire: false },
                 { levelNum: 29, name: "Nivel 5-3 (Abismo de los Espectros)", hasBonfire: false },
-                { levelNum: 30, name: "Nivel 5-4 (Torres Gemelas)", hasBonfire: false },
+                { levelNum: 30, name: "Nivel 5-4 (Torres Gemelas)", hasBonfire: true, spawnX: 120 },
                 { levelNum: 31, name: "Nivel 5-5 (Laberinto de Portales)", hasBonfire: false },
                 { levelNum: 32, name: "Nivel 5-6 (Puente Espectral)", hasBonfire: false },
                 { levelNum: 33, name: "Nivel 5-7 (Antesala del Reflejo)", hasBonfire: true, spawnX: 680 },
                 { levelNum: 34, name: "Nivel 5-8 (El Espejo del Alma)", hasBonfire: true, spawnX: 150 }
             ],
             6: [
-                { levelNum: 35, name: "Nivel 6-1 (Nubes del Alba Negra)", hasBonfire: true, spawnX: 120 }
+                { levelNum: 35, name: "Nivel 6-1 (Nubes del Alba Negra)", hasBonfire: true, spawnX: 120 },
+                { levelNum: 36, name: "Nivel 6-2 (Puentes de Alabastro)", hasBonfire: false },
+                { levelNum: 37, name: "Nivel 6-3 (Reto del Alba)", hasBonfire: true, spawnX: 120 },
+                { levelNum: 38, name: "Nivel 6-4 (Jardines Suspendidos)", hasBonfire: false },
+                { levelNum: 39, name: "Nivel 6-5 (Capilla del Ala Negra)", hasBonfire: true, spawnX: 120 },
+                { levelNum: 40, name: "Nivel 6-6 (Escaleras de Nube)", hasBonfire: false },
+                { levelNum: 41, name: "Nivel 6-7 (Hoguera del Cielo Roto)", hasBonfire: true, spawnX: 120 },
+                { levelNum: 42, name: "Nivel 6-8 (Prueba del Castillo Blanco)", hasBonfire: false },
+                { levelNum: 43, name: "Nivel 6-9 (Ultima Nube)", hasBonfire: true, spawnX: 120 },
+                { levelNum: 44, name: "Nivel 6-10 (Arconte del Alba Negra)", hasBonfire: true, spawnX: 150, requiresBoss: 'boss6Defeated' }
             ]
         };
 
@@ -937,6 +1025,8 @@ class Game {
         this.boss2Defeated = false; // Flag para evitar que el boss 2 reviva
         this.boss3Defeated = false; // Flag para evitar que el boss 3 reviva
         this.boss4Defeated = false; // Flag para evitar que el boss 4 reviva
+        this.world5BossDefeated = false; // Desbloquea capacidad extra de pociones para Mundo 6+
+        this.boss6Defeated = false; // Flag para evitar que el boss 6 reviva
         this.world4MiniBossDefeated = false;
 
         // Entidades de Nivel 2
@@ -1387,6 +1477,8 @@ class Game {
         this.boss2Defeated = !!saveData?.boss2Defeated;
         this.boss3Defeated = !!saveData?.boss3Defeated;
         this.boss4Defeated = !!saveData?.boss4Defeated;
+        this.world5BossDefeated = !!saveData?.world5BossDefeated || this.level >= 35 || (saveData?.litBonfires || []).includes(35);
+        this.boss6Defeated = !!saveData?.boss6Defeated;
         this.openedChests = new Set(saveData?.openedChests || []);
         this.openedTreasureDoors = new Set(saveData?.openedTreasureDoors || []);
         this.greatPotionShopPurchased = !!saveData?.greatPotionShopPurchased;
@@ -1451,7 +1543,7 @@ class Game {
 
     normalizeLevelNumber(levelNum) {
         const parsed = Number(levelNum);
-        return Number.isInteger(parsed) && parsed >= 1 && parsed <= 35 ? parsed : 1;
+        return Number.isInteger(parsed) && parsed >= 1 && parsed <= 44 ? parsed : 1;
     }
 
     resetTransientStateForLevelStart() {
@@ -1865,6 +1957,8 @@ class Game {
             boss2Defeated: this.boss2Defeated,
             boss3Defeated: this.boss3Defeated,
             boss4Defeated: this.boss4Defeated,
+            world5BossDefeated: this.world5BossDefeated,
+            boss6Defeated: this.boss6Defeated,
             world4MiniBossDefeated: this.world4MiniBossDefeated,
             litBonfires: this.litBonfires,
             openedChests: Array.from(this.openedChests),
@@ -1881,6 +1975,7 @@ class Game {
                 stamina: this.player.stamina,
                 coins: this.player.coins,
                 potions: this.player.potions,
+                maxPotions: this.player.maxPotions,
                 greatPotions: this.player.greatPotions,
                 berries: this.player.berries,
                 violetBerries: this.player.violetBerries,
@@ -1929,6 +2024,8 @@ class Game {
         this.boss3Defeated = !!saveData.boss3Defeated;
         this.boss2Defeated = !!saveData.boss2Defeated;
         this.boss4Defeated = !!saveData.boss4Defeated;
+        this.world5BossDefeated = !!saveData.world5BossDefeated || (saveData.level || 1) >= 35 || (saveData.litBonfires || []).includes(35);
+        this.boss6Defeated = !!saveData.boss6Defeated;
         this.world4MiniBossDefeated = !!saveData.world4MiniBossDefeated;
         this.openedChests = new Set(saveData.openedChests || []);
         this.openedTreasureDoors = new Set(saveData.openedTreasureDoors || []);
@@ -1951,6 +2048,7 @@ class Game {
         this.player.flasks = savedPlayer.flasks ?? 0;
         this.player.coins = savedPlayer.coins ?? 0;
         this.player.potions = savedPlayer.potions ?? 1;
+        this.player.maxPotions = this.getMaxMinorPotions();
         this.player.greatPotions = savedPlayer.greatPotions ?? 0;
         this.player.berries = savedPlayer.berries ?? 0;
         this.player.violetBerries = savedPlayer.violetBerries ?? 0;
@@ -1995,6 +2093,124 @@ class Game {
         this.applyRelicEffects();
         this.cameraX = Math.max(0, Math.min(this.levelWidth - 960, this.player.x - 960 * 0.35));
         this.cameraY = Math.max(540 - this.levelHeight, Math.min(0, this.player.y - 540 * 0.42));
+    }
+
+    setupWorld6SkyLevel(levelNum) {
+        const sub = levelNum - 34;
+        const hasBonfire = [1, 3, 5, 7, 9].includes(sub);
+        const levelNames = {
+            2: 'PUENTES DE ALABASTRO',
+            3: 'RETO DEL ALBA',
+            4: 'JARDINES SUSPENDIDOS',
+            5: 'CAPILLA DEL ALA NEGRA',
+            6: 'ESCALERAS DE NUBE',
+            7: 'HOGUERA DEL CIELO ROTO',
+            8: 'PRUEBA DEL CASTILLO BLANCO',
+            9: 'ULTIMA NUBE'
+        };
+
+        this.levelWidth = sub === 8 ? 3400 : 3000;
+        this.levelHeight = sub >= 6 ? 980 : 900;
+        this.bonfire = hasBonfire ? {
+            x: 120,
+            y: this.floorY - 95,
+            width: 48,
+            height: 65,
+            lit: this.latestLitBonfire.level === levelNum && this.latestLitBonfire.lit,
+            animTime: 0
+        } : null;
+
+        const exitPlatformY = sub % 2 === 0 ? this.floorY - 180 : this.floorY - 120;
+        this.exitDoor = { x: this.levelWidth - 230, y: exitPlatformY - 60, width: 40, height: 60 };
+
+        const cloudRows = [
+            { x: 40, y: this.floorY - 30, w: 360 },
+            { x: 470, y: this.floorY - 120, w: 220 },
+            { x: 820, y: this.floorY - 220, w: 230 },
+            { x: 1210, y: this.floorY - 145, w: 260 },
+            { x: 1600, y: this.floorY - 270, w: 230 },
+            { x: 1980, y: this.floorY - 180, w: 260 },
+            { x: 2360, y: this.floorY - 310, w: 230 },
+            { x: this.levelWidth - 290, y: exitPlatformY, w: 250 }
+        ];
+
+        cloudRows.forEach(row => this.platforms.push(new Platform(row.x, row.y, row.w, 22, 'stone')));
+
+        if (sub >= 4) {
+            this.platforms.push(new CrumblingPlatform(1120, this.floorY - 320, 150));
+            this.platforms.push(new CrumblingPlatform(1780, this.floorY - 390, 150));
+        }
+        if (sub >= 6) {
+            this.platforms.push(new Platform(620, this.floorY - 360, 190, 22, 'stone'));
+            this.platforms.push(new Platform(1420, this.floorY - 480, 180, 22, 'stone'));
+            this.platforms.push(new Platform(2140, this.floorY - 520, 210, 22, 'stone'));
+        }
+
+        this.windCurrents.push(new WindCurrent(735, this.floorY - 300, 58, 230, -1.05));
+        if (sub >= 4) this.windCurrents.push(new WindCurrent(1500, this.floorY - 455, 60, 300, -1.08));
+        if (sub >= 8) this.windCurrents.push(new WindCurrent(2580, this.floorY - 520, 60, 335, -1.12));
+
+        this.lightningTraps.push(new LightningTrap(1090, this.floorY - 250, 220));
+        if (sub >= 5) this.lightningTraps.push(new LightningTrap(1870, this.floorY - 420, 300));
+        if (sub >= 8) this.lightningTraps.push(new LightningTrap(2760, this.floorY - 520, 360));
+
+        this.skeletons.push(new WhiteKnight(570, this.floorY - 120 - 58, sub >= 5 ? 'heavy' : 'blade'));
+        this.skeletons.push(new WhiteKnight(1320, this.floorY - 145 - 58, 'blade'));
+        this.skeletons.push(new WhiteKnight(2050, this.floorY - 180 - 58, sub >= 7 ? 'heavy' : 'blade'));
+        if (sub >= 4) this.skeletons.push(new WhiteKnight(2425, this.floorY - 310 - 58, 'blade'));
+
+        this.windSentinels.push(new WingedWhiteKnight(910, this.floorY - 335, 'blade'));
+        if (sub >= 5) this.windSentinels.push(new WingedWhiteKnight(1720, this.floorY - 450, 'heavy'));
+        if (sub >= 7) this.windSentinels.push(new WingedWhiteKnight(2500, this.floorY - 520, 'blade'));
+
+        if (sub === 2) {
+            this.chests.push(new TreasureChest(2020, this.floorY - 180 - 36, 'violet_berry'));
+        } else if (sub === 4) {
+            this.chests.push(new TreasureChest(1450, this.floorY - 480 - 36, 'great_potion'));
+        } else if (sub === 6) {
+            this.chests.push(new TreasureChest(2180, this.floorY - 520 - 36, 'storm_potion'));
+        } else if (sub === 9) {
+            this.chests.push(new TreasureChest(2385, this.floorY - 310 - 36, 'great_potion'));
+        }
+
+        if (sub === 3) {
+            this.challengeDoors.push(new ChallengeDoor(1545, this.floorY - 270 - 64, 'w6-3-dawn-trial', 'DERROTA LA GUARDIA DEL ALBA', 'defeat', 'coins', {
+                coinReward: 10,
+                cleanupOnComplete: false,
+                enemies: [
+                    new WhiteKnight(1250, this.floorY - 145 - 58, 'heavy'),
+                    new WhiteKnight(1750, this.floorY - 270 - 58, 'blade'),
+                    new WingedWhiteKnight(1960, this.floorY - 410, 'blade')
+                ]
+            }));
+        }
+
+        if (sub === 5) {
+            this.challengeDoors.push(new ChallengeDoor(1545, this.floorY - 270 - 64, 'w6-5-black-wing', 'ROMPE EL SELLO DEL ALA NEGRA', 'defeat', 'none', {
+                cleanupOnComplete: false,
+                enemies: [
+                    new WhiteKnight(1200, this.floorY - 145 - 58, 'blade'),
+                    new WingedWhiteKnight(1780, this.floorY - 420, 'blade')
+                ],
+                finalEnemy: new WingedWhiteKnight(2140, this.floorY - 520, 'mini'),
+                instantReward: 'green_coin'
+            }));
+        }
+
+        if (sub === 8) {
+            this.challengeDoors.push(new ChallengeDoor(2540, this.floorY - 310 - 64, 'w6-8-white-castle', 'SOBREVIVE A LA LUZ CAIDA', 'defeat', 'coins', {
+                coinReward: 10,
+                cleanupOnComplete: false,
+                enemies: [
+                    new WhiteKnight(1950, this.floorY - 180 - 58, 'heavy'),
+                    new WhiteKnight(2400, this.floorY - 310 - 58, 'blade'),
+                    new WingedWhiteKnight(2880, this.floorY - 560, 'heavy')
+                ]
+            }));
+        }
+
+        this.domBossHud.classList.add('hidden');
+        particles.addFloatingText(80, this.floorY - 140, `MUNDO 6-${sub}: ${levelNames[sub]}`, '#ffffff', 14, true);
     }
 
     initLevel(levelNum) {
@@ -2059,7 +2275,7 @@ class Game {
             // Plataformas secretas (Habitaciones pequeñas de almas)
             this.platforms.push(new Platform(920, 200, 180));
             this.platforms.push(new Platform(1750, 180, 180));
-            this.loreTablets.push(new LoreTablet(420, this.floorY - 52, "Estas piedras guardan juramentos|de caballeros que no volvieron."));
+            this.loreTablets.push(new LoreTablet(420, this.floorY - 52, "Cuando las cuatro coronas cayeron,|el mundo aprendio a temer la oscuridad.|Los lideres aun viven,|pero sus almas ya no les pertenecen.|Si encuentras las hogueras,|sigue su luz.|Cada llama recuerda el camino|hacia el primer trono encadenado."));
 
             // Cajas Rompibles (Crates)
             this.crates.push(new Crate(250, this.floorY - 38));
@@ -3366,13 +3582,51 @@ class Game {
             this.lightningTraps.push(new LightningTrap(1710, 115, 315));
             this.windSentinels.push(new WindSentinel(1510, 135));
             this.loreTablets.push(new LoreTablet(360, this.floorY - 52, "El castillo no cayo.|Se nego a tocar la tierra."));
-            this.loreTablets.push(new LoreTablet(2180, 100 - 52, "No abras todo lo dorado|sin escuchar primero el trueno."));
-            this.challengeDoors.push(new ChallengeDoor(2450, 100 - 64, 'w4-storm-vault', 'SOBREVIVE AL PULSO DEL TRONO', 'survive', 'coins', { duration: 540, coinReward: 15 }));
+            this.loreTablets.push(new LoreTablet(2180, 100 - 52, "El trono prueba dos veces.|Cuando cae la primera guardia,|la segunda aparece junto a tu sombra."));
+            const makeVaultKnight = (x, y, variant) => {
+                const enemy = new SkeletonMinion(x, y, variant);
+                enemy.chaseOnSight = true;
+                enemy.chaseRange = 620;
+                enemy.chaseHeightRange = 260;
+                enemy.chaseSpeed = variant === 'knight_full' ? 1.9 : 2.15;
+                return enemy;
+            };
+            const makeVaultArcher = (x, y) => {
+                const archer = new SkeletonArcher(x, y, 'helmetless');
+                archer.shootRange = 560;
+                archer.shootHeightRange = 300;
+                return archer;
+            };
+            this.challengeDoors.push(new ChallengeDoor(2450, 100 - 64, 'w4-throne-hordes', 'DERROTA LAS HORDAS DEL TRONO', 'defeat', 'none', {
+                autoOpenOnComplete: true,
+                coinRewardOnComplete: 10,
+                waves: [
+                    {
+                        label: 'PRIMERA HORDA',
+                        enemies: [
+                            makeVaultKnight(2320, 100 - 54, 'knight_full'),
+                            makeVaultKnight(2580, 100 - 54, 'knight_full')
+                        ]
+                    },
+                    {
+                        label: 'SEGUNDA HORDA',
+                        nearPlayer: true,
+                        offsets: [-135, 135, -235, 235],
+                        enemies: [
+                            makeVaultKnight(0, 0, 'knight_light'),
+                            makeVaultKnight(0, 0, 'knight_light'),
+                            makeVaultArcher(0, 0),
+                            makeVaultArcher(0, 0)
+                        ]
+                    }
+                ]
+            }));
 
             this.crates.push(new Crate(1230, 100 - 38));
             this.chests.push(new TreasureChest(640, 180 - 30, 'coins'));
-            this.chests.push(new TreasureChest(2480, 100 - 30, 'berry'));
-            this.chests[this.chests.length - 1].eventType = 'lightning';
+            this.chests.push(new TreasureChest(2480, 100 - 30, 'coins'));
+            this.chests[this.chests.length - 1].requiresChallenge = 'w4-throne-hordes';
+            this.chests[this.chests.length - 1].coinCount = 15;
             this.spikes.push(new Spikes(1480, this.floorY - 20, 3));
             this.blades.push(new CeilingBlade(1160, -80, 210));
 
@@ -3766,14 +4020,14 @@ class Game {
             // Nivel 4-7 (Trono de la Tormenta: jefe final del castillo flotante)
             this.levelWidth = 1800;
             this.levelHeight = 1050;
-            this.bonfire = {
+            this.bonfire = this.boss4Defeated ? {
                 x: 220,
                 y: this.floorY - 65,
                 width: 48,
                 height: 65,
                 lit: this.latestLitBonfire.level === 25 && this.latestLitBonfire.lit,
                 animTime: 0
-            };
+            } : null;
             this.exitDoor = this.boss4Defeated ? { x: 1640, y: this.floorY - 60, width: 40, height: 60 } : null;
 
             this.platforms.push(new Platform(420, 260, 180, 22));
@@ -3897,7 +4151,7 @@ class Game {
             // Cajas y tesoros
             this.crates.push(new Crate(300, this.floorY - 80 - 32));
             this.crates.push(new Crate(332, this.floorY - 80 - 32));
-            this.chests.push(new TreasureChest(1220, 244 - 36, 'storm_potion'));
+            this.chests.push(new TreasureChest(560, this.floorY - 160 - 36, 'storm_potion'));
 
             particles.addFloatingText(80, this.floorY - 120, "MUNDO 5-1: UMBRAL DEL VACÍO", "#b642f5", 14, true);
         } else if (levelNum === 28) {
@@ -3966,7 +4220,7 @@ class Game {
             this.spectralWraiths.push(new SpectralWraith(1900, this.floorY - 290, 'blade'));
 
             this.crates.push(new Crate(2300, this.floorY - 70 - 32));
-            this.chests.push(new TreasureChest(2340, this.floorY - 70 - 36, 'storm_potion'));
+            this.chests.push(new TreasureChest(2240, this.floorY - 70 - 36, 'storm_potion'));
 
             this.loreTablets.push(new LoreTablet(100, this.floorY - 122, "Los espectros se alimentan de la luz.|Solo el acero sagrado puede disipar su esencia."));
 
@@ -3975,7 +4229,14 @@ class Game {
             // Nivel 30: Torres Gemelas de Energía (Mundo 5-4)
             this.levelWidth = 2600;
             this.levelHeight = 2400; // Escalada vertical y laberinto de portales
-            this.bonfire = null;
+            this.bonfire = {
+                x: 120,
+                y: this.floorY - 25 - 65,
+                width: 48,
+                height: 65,
+                lit: this.latestLitBonfire.level === 30 && this.latestLitBonfire.lit,
+                animTime: 0
+            };
             this.exitDoor = { x: 1200, y: this.floorY - 25 - 60, width: 40, height: 60 };
 
             this.spectralPortals = [];
@@ -4033,22 +4294,23 @@ class Game {
             this.spectralWraiths.push(new SpectralWraith(1950, this.floorY - 1140, 'staff'));
 
             if (!this.player?.hasVoidKey) {
-                const voidWarden = new SpectralWraith(1940, this.floorY - 1880 - 70, 'blade');
+                const voidWarden = new SpectralWraith(1940, this.floorY - 1880 - 70, 'staff');
                 voidWarden.isMiniBoss = true;
-                voidWarden.maxHp = 240;
-                voidWarden.hp = 240;
+                voidWarden.maxHp = 500;
+                voidWarden.hp = 500;
                 voidWarden.damage = 17;
                 voidWarden.width = 56;
                 voidWarden.height = 68;
-                voidWarden.speed = 1.55;
-                voidWarden.chaseRange = 760;
+                voidWarden.speed = 1.35;
+                voidWarden.chaseRange = 820;
+                voidWarden.attackCooldown = 105;
                 voidWarden.customDrop = 'void_key';
                 this.spectralWraiths.push(voidWarden);
             }
 
             this.crates.push(new Crate(950, this.floorY - 25 - 32));
             this.chests.push(new TreasureChest(980, this.floorY - 25 - 36, 'storm_potion'));
-            this.chests.push(new TreasureChest(1620, this.floorY - 660 - 36, 'violet_berry'));
+            this.chests.push(new TreasureChest(1710, this.floorY - 660 - 36, 'violet_berry'));
             this.crates.push(new Crate(1590, this.floorY - 1060 - 32));
             this.crates.push(new Crate(2020, this.floorY - 1060 - 32));
             this.loreTablets.push(new LoreTablet(590, this.floorY - 1014, "Las puertas del vacío no siempre avanzan.|La llave duerme donde el gancho alcanza la sombra."));
@@ -4066,7 +4328,7 @@ class Game {
 
             // Repisas fijas
             this.platforms.push(new Platform(50, this.floorY - 80, 200, 22, 'stone')); // Inicio
-            this.platforms.push(new Platform(500, this.floorY - 120, 180, 22, 'stone')); // Sala A
+            this.platforms.push(new Platform(440, this.floorY - 120, 240, 22, 'stone')); // Sala A (extendida a la izquierda para alejar el cofre del portal)
             this.platforms.push(new Platform(1000, this.floorY - 200, 180, 22, 'stone')); // Sala B
             this.platforms.push(new Platform(1500, this.floorY - 120, 180, 22, 'stone')); // Sala C
             this.platforms.push(new Platform(2000, this.floorY - 200, 220, 22, 'stone')); // Sala Llave
@@ -4094,9 +4356,9 @@ class Game {
             this.spectralWraiths.push(new SpectralWraith(3500, this.floorY - 220, 'staff'));
 
             // Cofre de recompensa con poción sagrada en la sala del final
-            this.chests.push(new TreasureChest(2080, this.floorY - 200 - 36, 'storm_potion'));
-            this.chests.push(new TreasureChest(520, this.floorY - 120 - 36, 'false_shield'));
-            this.chests.push(new TreasureChest(3440, this.floorY - 80 - 36, 'shield'));
+            this.chests.push(new TreasureChest(2180, this.floorY - 200 - 36, 'storm_potion'));
+            this.chests.push(new TreasureChest(460, this.floorY - 120 - 36, 'false_shield'));
+            this.chests.push(new TreasureChest(3300, this.floorY - 80 - 36, 'shield'));
             this.crates.push(new Crate(2550, this.floorY - 80 - 32));
 
             particles.addFloatingText(80, this.floorY - 120, "MUNDO 5-5: EL LABERINTO DE LOS PORTALES", "#b642f5", 14, true);
@@ -4104,14 +4366,7 @@ class Game {
             // Nivel 32: Puente de la Tormenta Espectral (Mundo 5-6)
             this.levelWidth = 3200;
             this.levelHeight = 750;
-            this.bonfire = {
-                x: 130,
-                y: this.floorY - 80 - 65,
-                width: 48,
-                height: 65,
-                lit: this.latestLitBonfire.level === 32 && this.latestLitBonfire.lit,
-                animTime: 0
-            };
+            this.bonfire = null;
             this.exitDoor = { x: 3000, y: this.floorY - 80 - 60, width: 40, height: 60 };
 
             this.spectralPortals = [];
@@ -4228,7 +4483,7 @@ class Game {
                 lit: this.latestLitBonfire.level === 35 && this.latestLitBonfire.lit,
                 animTime: 0
             };
-            this.exitDoor = null;
+            this.exitDoor = { x: 2165, y: this.floorY - 160 - 60, width: 40, height: 60 };
 
             this.platforms.push(new Platform(40, this.floorY - 30, 360, 24, 'stone'));
             this.platforms.push(new Platform(520, this.floorY - 120, 220, 22, 'stone'));
@@ -4237,11 +4492,47 @@ class Game {
             this.platforms.push(new Platform(1700, this.floorY - 250, 260, 22, 'stone'));
             this.platforms.push(new Platform(2100, this.floorY - 160, 220, 22, 'stone'));
 
-            this.loreTablets.push(new LoreTablet(225, this.floorY - 82, "Ya se elimino uno de los 4 espiritus malignos|que se estan apoderando del mundo.|Pero el castillo blanco aun respira un aura negra."));
+            this.loreTablets.push(new LoreTablet(225, this.floorY - 82, "Los cuatro lideres juraron proteger este mundo.|Cada uno guardaba una corona, una tierra y un destino.|Pero desde las profundidades desperto una voluntad oscura.|Los vencio uno por uno, no para destruirlos,|sino para usar sus almas como cadenas.|Ya has liberado al primer lider.|Aun quedan tres tronos bajo el dominio de esa sombra.|Y cuando caiga el ultimo...|se abrira el camino hacia quien los controla."));
             this.chests.push(new TreasureChest(920, this.floorY - 210 - 36, 'storm_potion'));
+            this.windCurrents.push(new WindCurrent(760, this.floorY - 300, 58, 230, -1.02));
+            this.lightningTraps.push(new LightningTrap(1130, this.floorY - 270, 230));
+            this.skeletons.push(new WhiteKnight(600, this.floorY - 120 - 58, 'blade'));
+            this.skeletons.push(new WhiteKnight(1320, this.floorY - 130 - 58, 'blade'));
+            this.windSentinels.push(new WingedWhiteKnight(1780, this.floorY - 410, 'blade'));
 
             this.domBossHud.classList.add('hidden');
             particles.addFloatingText(80, this.floorY - 140, "MUNDO 6-1: NUBES DEL ALBA NEGRA", "#ffffff", 14, true);
+        } else if (levelNum >= 36 && levelNum <= 43) {
+            this.setupWorld6SkyLevel(levelNum);
+        } else if (levelNum === 44) {
+            // Nivel 44: Arconte del Alba Negra (Mundo 6-10)
+            this.levelWidth = 1800;
+            this.levelHeight = 850;
+            this.bonfire = {
+                x: 150,
+                y: this.floorY - 95,
+                width: 48,
+                height: 65,
+                lit: this.latestLitBonfire.level === 44 && this.latestLitBonfire.lit,
+                animTime: 0
+            };
+            this.exitDoor = null;
+
+            this.platforms.push(new Platform(40, this.floorY - 30, 410, 24, 'stone'));
+            this.platforms.push(new Platform(600, this.floorY - 170, 250, 22, 'stone'));
+            this.platforms.push(new Platform(1030, this.floorY - 250, 250, 22, 'stone'));
+            this.platforms.push(new Platform(1350, this.floorY - 110, 260, 22, 'stone'));
+
+            if (this.boss6Defeated) {
+                particles.addFloatingText(80, this.floorY - 140, "MUNDO 6-10: ARCONTE PURIFICADO", "#ffffff", 14, true);
+                this.domBossHud.classList.add('hidden');
+            } else {
+                this.boss = new WhiteArchonBoss(1120, this.floorY - 250 - 92);
+                this.domBossHud.classList.remove('hidden');
+                const nameLabel = document.getElementById('boss-name-label');
+                if (nameLabel) nameLabel.innerText = "ARCONTE DEL ALBA NEGRA";
+                particles.addFloatingText(80, this.floorY - 140, "MUNDO 6-10: ARCONTE DEL ALBA NEGRA", "#ffffff", 14, true);
+            }
         }
 
         // Generar antorchas dinámicamente basadas en el ancho del nivel
@@ -4335,6 +4626,12 @@ class Game {
 
     triggerVictory() {
         if (this.level === 34) {
+            this.world5BossDefeated = true;
+            if (this.player) {
+                this.player.maxPotions = this.getMaxMinorPotions();
+                particles.addFloatingText(this.player.x + this.player.width / 2, this.player.y - 42, "BOLSA DE POCIONES 5/5", "#00ff66", 11, true);
+            }
+            this.saveGame();
             this.startWorld6Cinematic();
             return;
         }
@@ -4368,7 +4665,7 @@ class Game {
 
     startWorld6Cinematic() {
         this.state = 'world6_cinematic';
-        this.world6Cinematic = { frame: 0 };
+        this.world6Cinematic = { frame: 0, autoFinished: false };
         this.activeLoreNote = null;
         this.domHud.classList.add('hidden');
         if (this.domBossHud) this.domBossHud.classList.add('hidden');
@@ -4396,16 +4693,203 @@ class Game {
             };
             this.bonfire.lit = true;
         }
-        this.activeLoreNote = {
-            title: 'CARTA ENTRE LAS NUBES',
-            lines: [
-                'Ya se elimino uno de los 4 espiritus malignos',
-                'que se estan apoderando del mundo.',
-                'Pero a lo lejos, otro castillo respira oscuridad.'
-            ]
-        };
+        this.activeLoreNote = this.createWorld6LoreNote();
         this.saveGame();
         audio.startMusic();
+    }
+
+    createWorld6LoreNote() {
+        return {
+            title: 'CARTA ENTRE LAS NUBES',
+            lines: [
+                'Los cuatro lideres juraron proteger este mundo.',
+                'Cada uno guardaba una corona, una tierra y un destino.',
+                '',
+                'Pero desde las profundidades desperto una voluntad oscura.',
+                'Los vencio uno por uno, no para destruirlos,',
+                'sino para usar sus almas como cadenas.',
+                '',
+                'Ya has liberado al primer lider.',
+                'Aun quedan tres tronos bajo el dominio de esa sombra.',
+                'Y cuando caiga el ultimo...',
+                'se abrira el camino hacia quien los controla.'
+            ]
+        };
+    }
+
+    drawCinematicCharacter(ctx, x, y, options = {}) {
+        const scale = options.scale ?? 1;
+        const facing = options.facing ?? 1;
+        const alpha = options.alpha ?? 1;
+        const pose = options.pose || 'stand';
+        const dark = options.variant === 'doppel';
+        const jump = pose === 'jump';
+        const kneel = pose === 'kneel';
+        const fallen = pose === 'fallen';
+
+        const armor = dark ? '#24102f' : '#cfd7e8';
+        const armorLight = dark ? '#5d247a' : '#f4f7ff';
+        const cloth = dark ? '#09040f' : '#26364f';
+        const glow = dark ? '#ff00ff' : '#9ee8ff';
+        const skin = dark ? '#e8d7ff' : '#f1d2aa';
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(x, y);
+        ctx.scale(facing * scale, scale);
+
+        if (fallen) {
+            ctx.rotate(Math.PI * 0.42);
+            ctx.translate(6, 8);
+        } else if (kneel) {
+            ctx.rotate(Math.PI * 0.08);
+            ctx.translate(0, 10);
+        } else if (jump) {
+            ctx.rotate(-Math.PI * 0.12);
+        }
+
+        ctx.shadowBlur = dark ? 22 : 12;
+        ctx.shadowColor = glow;
+        ctx.fillStyle = `rgba(${dark ? '255, 0, 255' : '158, 232, 255'}, ${dark ? 0.14 : 0.10})`;
+        ctx.beginPath();
+        ctx.ellipse(0, -32, 35, 56, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Cape.
+        ctx.fillStyle = cloth;
+        ctx.beginPath();
+        ctx.moveTo(-16, -50);
+        ctx.quadraticCurveTo(-32, -20, -18, 26);
+        ctx.lineTo(18, 26);
+        ctx.quadraticCurveTo(30, -22, 14, -50);
+        ctx.closePath();
+        ctx.fill();
+
+        // Legs.
+        ctx.fillStyle = dark ? '#12061a' : '#1f2c44';
+        if (kneel) {
+            ctx.fillRect(-13, 6, 10, 28);
+            ctx.fillRect(4, 18, 24, 9);
+        } else if (jump) {
+            ctx.fillRect(-13, 8, 9, 24);
+            ctx.fillRect(5, 7, 9, 28);
+        } else {
+            ctx.fillRect(-13, 4, 10, 34);
+            ctx.fillRect(5, 4, 10, 34);
+        }
+
+        // Armor torso.
+        const chestGrad = ctx.createLinearGradient(0, -58, 0, 8);
+        chestGrad.addColorStop(0, armorLight);
+        chestGrad.addColorStop(0.55, armor);
+        chestGrad.addColorStop(1, dark ? '#16091f' : '#7e8aa0');
+        ctx.fillStyle = chestGrad;
+        ctx.beginPath();
+        ctx.moveTo(-18, -48);
+        ctx.lineTo(18, -48);
+        ctx.lineTo(14, 8);
+        ctx.lineTo(-14, 8);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = dark ? '#ff66ff' : '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -45);
+        ctx.lineTo(0, 4);
+        ctx.stroke();
+
+        // Arms.
+        ctx.strokeStyle = armorLight;
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-16, -35);
+        ctx.lineTo(kneel ? -30 : -27, kneel ? -5 : -18);
+        ctx.moveTo(16, -35);
+        ctx.lineTo(jump ? 34 : 28, jump ? -48 : -14);
+        ctx.stroke();
+
+        // Sword.
+        ctx.strokeStyle = glow;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(jump ? 34 : 26, jump ? -48 : -16);
+        ctx.lineTo(jump ? 64 : 50, jump ? -75 : -46);
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(jump ? 60 : 47, jump ? -80 : -50, 8, 10);
+
+        // Helmet/head.
+        ctx.fillStyle = skin;
+        ctx.fillRect(-11, -66, 22, 20);
+        ctx.fillStyle = dark ? '#1a0828' : '#dce6ff';
+        ctx.fillRect(-15, -73, 30, 18);
+        ctx.fillStyle = glow;
+        ctx.fillRect(-8, -63, 16, 3);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(-2, -76, 4, 9);
+
+        ctx.restore();
+    }
+
+    drawCinematicCastle(ctx, x, y, scale = 1, auraAlpha = 0.75) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
+
+        ctx.shadowBlur = 34;
+        ctx.shadowColor = `rgba(8, 0, 15, ${auraAlpha})`;
+        ctx.fillStyle = `rgba(0, 0, 0, ${auraAlpha})`;
+        ctx.beginPath();
+        ctx.ellipse(120, 72, 180, 155, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        const stoneGrad = ctx.createLinearGradient(0, -120, 0, 170);
+        stoneGrad.addColorStop(0, '#ffffff');
+        stoneGrad.addColorStop(0.5, '#dbe7f5');
+        stoneGrad.addColorStop(1, '#91a7c7');
+        ctx.fillStyle = stoneGrad;
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = '#ffffff';
+
+        const towers = [
+            { x: 8, y: 10, w: 40, h: 128, spire: 48 },
+            { x: 52, y: -42, w: 54, h: 180, spire: 70 },
+            { x: 116, y: -88, w: 62, h: 226, spire: 90 },
+            { x: 188, y: -20, w: 48, h: 158, spire: 58 }
+        ];
+        towers.forEach(tower => {
+            ctx.fillRect(tower.x, tower.y, tower.w, tower.h);
+            ctx.beginPath();
+            ctx.moveTo(tower.x, tower.y);
+            ctx.lineTo(tower.x + tower.w / 2, tower.y - tower.spire);
+            ctx.lineTo(tower.x + tower.w, tower.y);
+            ctx.closePath();
+            ctx.fill();
+        });
+
+        ctx.fillRect(34, 46, 190, 92);
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(8, 0, 15, 0.82)';
+        ctx.lineWidth = 4;
+        towers.forEach(tower => ctx.strokeRect(tower.x, tower.y, tower.w, tower.h));
+        ctx.strokeRect(34, 46, 190, 92);
+
+        ctx.fillStyle = '#090212';
+        for (let i = 0; i < 7; i++) {
+            const wx = 56 + i * 24;
+            ctx.fillRect(wx, 70 + (i % 2) * 12, 8, 22);
+        }
+        ctx.beginPath();
+        ctx.arc(128, 137, 24, Math.PI, 0);
+        ctx.lineTo(152, 138);
+        ctx.lineTo(104, 138);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
     }
 
     drawWorld6Cinematic() {
@@ -4433,6 +4917,24 @@ class Game {
         ctx.strokeStyle = '#5d2a7a';
         ctx.lineWidth = 3;
         ctx.strokeRect(0, h - 92, w, 92);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+        for (let i = 0; i < 6; i++) {
+            const colX = 70 + i * 170;
+            ctx.fillRect(colX, 66, 22, h - 158);
+            ctx.fillRect(colX - 13, 66, 48, 12);
+            ctx.fillRect(colX - 18, h - 105, 58, 13);
+        }
+        ctx.fillStyle = 'rgba(158, 232, 255, 0.08)';
+        for (let i = 0; i < 5; i++) {
+            const beamX = 120 + i * 165;
+            ctx.beginPath();
+            ctx.moveTo(beamX, 0);
+            ctx.lineTo(beamX + 95, h - 92);
+            ctx.lineTo(beamX + 35, h - 92);
+            ctx.lineTo(beamX - 40, 0);
+            ctx.closePath();
+            ctx.fill();
+        }
 
         if (t > 120) {
             const crack = Math.min(1, (t - 120) / 140);
@@ -4453,22 +4955,25 @@ class Game {
         const dgY = h - 128;
         const fall = Math.min(1, t / 140);
         ctx.save();
-        ctx.translate(dgX, dgY + fall * 26);
-        ctx.rotate(fall * Math.PI * 0.38);
-        ctx.globalAlpha = t > 210 ? Math.max(0.2, 1 - (t - 210) / 130) : 1;
-        ctx.fillStyle = '#2b083d';
-        ctx.fillRect(-20, -55, 40, 55);
-        ctx.fillStyle = '#f2e7ff';
-        ctx.fillRect(-12, -72, 24, 18);
-        ctx.fillStyle = '#ff00ff';
-        ctx.fillRect(-5, -65, 10, 3);
-        ctx.strokeStyle = '#d9f6ff';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(12, -28);
-        ctx.lineTo(38, -50);
-        ctx.stroke();
+        ctx.globalAlpha = t > 210 ? Math.max(0.16, 1 - (t - 210) / 120) : 1;
+        const doppelPose = t < 68 ? 'stand' : (t < 140 ? 'kneel' : 'fallen');
+        this.drawCinematicCharacter(ctx, dgX, dgY + fall * 18, {
+            scale: 1.05,
+            facing: 1,
+            variant: 'doppel',
+            pose: doppelPose
+        });
         ctx.restore();
+
+        if (t < 360) {
+            this.drawCinematicCharacter(ctx, w / 2 + 52, h - 124, {
+                scale: 1,
+                facing: 1,
+                variant: 'hero',
+                pose: t > 280 ? 'kneel' : 'stand',
+                alpha: t > 330 ? Math.max(0, 1 - (t - 330) / 40) : 1
+            });
+        }
 
         if (t > 210) {
             const hole = Math.min(1, (t - 210) / 150);
@@ -4519,16 +5024,13 @@ class Game {
             const jump = Math.min(1, Math.max(0, (t - 360) / 120));
             const px = w / 2 - 36 + jump * 205;
             const py = h - 135 - Math.sin(jump * Math.PI) * 105 - jump * 54;
-            ctx.fillStyle = '#cfd7e8';
-            ctx.fillRect(px - 11, py - 36, 22, 36);
-            ctx.fillStyle = '#f1d2aa';
-            ctx.fillRect(px - 8, py - 49, 16, 13);
-            ctx.strokeStyle = '#d9f6ff';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(px + 10, py - 24);
-            ctx.lineTo(px + 28, py - 42);
-            ctx.stroke();
+            this.drawCinematicCharacter(ctx, px, py, {
+                scale: 0.92 + jump * 0.22,
+                facing: 1,
+                variant: 'hero',
+                pose: 'jump',
+                alpha: 1 - Math.max(0, (t - 455) / 70)
+            });
         }
 
         if (t > 470) {
@@ -4552,34 +5054,10 @@ class Game {
                 ctx.fill();
             }
 
-            const castleX = w - 250;
-            const castleY = 155;
-            ctx.shadowBlur = 22;
-            ctx.shadowColor = '#08000f';
-            ctx.fillStyle = '#f8fbff';
-            ctx.fillRect(castleX, castleY, 128, 132);
-            ctx.fillRect(castleX + 22, castleY - 58, 32, 58);
-            ctx.fillRect(castleX + 82, castleY - 82, 38, 82);
+            this.drawCinematicCastle(ctx, w - 300, 118, 0.92, 0.72);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
             ctx.beginPath();
-            ctx.moveTo(castleX + 22, castleY - 58);
-            ctx.lineTo(castleX + 38, castleY - 94);
-            ctx.lineTo(castleX + 54, castleY - 58);
-            ctx.closePath();
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(castleX + 82, castleY - 82);
-            ctx.lineTo(castleX + 101, castleY - 126);
-            ctx.lineTo(castleX + 120, castleY - 82);
-            ctx.closePath();
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
-            ctx.lineWidth = 5;
-            ctx.strokeRect(castleX, castleY, 128, 132);
-
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
-            ctx.beginPath();
-            ctx.arc(castleX + 64, castleY + 40, 170, 0, Math.PI * 2);
+            ctx.arc(w - 185, 190, 210, 0, Math.PI * 2);
             ctx.fill();
             ctx.globalAlpha = 1;
         }
@@ -4605,7 +5083,12 @@ class Game {
         if (t >= 540) {
             ctx.fillStyle = Math.floor(t / 24) % 2 === 0 ? '#ffffff' : '#9ee8ff';
             ctx.font = '9px "Press Start 2P", monospace';
-            ctx.fillText("PULSA E PARA ENTRAR AL MUNDO 6-1", w / 2, h - 96);
+            ctx.fillText("ENTRANDO AL MUNDO 6-1...", w / 2, h - 96);
+            if (!data.autoFinished) {
+                data.autoFinished = true;
+                this.world6Cinematic = data;
+                setTimeout(() => this.finishWorld6Cinematic(), 650);
+            }
         }
 
         ctx.restore();
@@ -5145,7 +5628,9 @@ class Game {
                     const distY = Math.abs(this.player.y - chest.y);
                     if (distX < 75 && distY < 60) {
                         nearInteractive = true;
-                        interactiveText = "📦 ABRIR COFRE DE TESORO (PULSA 'E') 📦";
+                        interactiveText = chest.requiresChallenge && !this.completedChallenges.has(chest.requiresChallenge)
+                            ? "🔒 COFRE SELLADO POR EL RETO 🔒"
+                            : "📦 ABRIR COFRE DE TESORO (PULSA 'E') 📦";
                     }
                 }
             });
@@ -5196,6 +5681,8 @@ class Game {
                     interactiveText = "🚪 ENTRAR AL MUNDO 5 (PULSA 'E') 🚪";
                 } else if (this.level === 30 && !this.player.hasVoidKey) {
                     interactiveText = "🔒 SALIDA SELLADA: FALTA LA LLAVE DEL VACÍO 🔒";
+                } else if (this.level >= 35 && this.level <= 43) {
+                    interactiveText = `🚪 AVANZAR AL MUNDO 6-${this.level - 33} (PULSA 'E') 🚪`;
                 } else if (this.level >= 27 && this.level <= 33) {
                     interactiveText = `🚪 AVANZAR AL MUNDO 5-${this.level - 25} (PULSA 'E') 🚪`;
                 } else if (this.level >= 19 && this.level <= 25) {
@@ -5430,6 +5917,50 @@ class Game {
 
             // Actualizar HUD del jefe
             this.updateBossHud();
+        }
+
+        // 4.2 Actualizar Arconte del Alba Negra (Nivel 44: Final de Mundo 6)
+        if (this.level === 44 && this.boss) {
+            this.boss.update(this.player, 0, this.levelWidth, this.floorY, this);
+
+            if (this.boss.shouldTriggerShake) {
+                this.shakeTimer = 24;
+                this.shakeIntensity = 8;
+                this.boss.shouldTriggerShake = false;
+                this.freezeTimer = 4;
+            }
+
+            if (this.boss.hp > 0 && this.boss.state !== 'dead' &&
+                this.player.invincibleTimer <= 0 && this.checkAABBCollision(this.player, this.boss)) {
+                const contactDamage = this.boss.phase === 2 ? 18 : 15;
+                this.player.takeDamage(contactDamage, (this.player.x + this.player.width / 2 > this.boss.x + this.boss.width / 2 ? 4.5 : -4.5), this.boss.x + this.boss.width / 2);
+            }
+
+            for (let i = this.boss.spawnedProjectiles.length - 1; i >= 0; i--) {
+                const proj = this.boss.spawnedProjectiles[i];
+                proj.update();
+                if (proj.active && this.checkAABBCollision(this.player, proj)) {
+                    this.player.takeDamage(proj.damage, (this.player.x + this.player.width / 2 > proj.x + proj.width / 2 ? 3.5 : -3.5), proj.x + proj.width / 2);
+                    proj.active = false;
+                }
+                if (!proj.active) this.boss.spawnedProjectiles.splice(i, 1);
+            }
+
+            if (this.boss.hp <= 0 && this.boss.state === 'dead' && this.boss.vy === 0 && !this.boss6Defeated) {
+                this.boss6Defeated = true;
+                this.lootItems.push(new LootItem(this.boss.x + this.boss.width / 2 - 8, this.floorY - 52, 'grey_coin'));
+                this.spawnBossCoins(20, this.boss.x + this.boss.width / 2, this.floorY - 45);
+                particles.spawnCollectGlow(this.boss.x + this.boss.width / 2, this.floorY - 45, '#ffffff', 32);
+                particles.addFloatingText(this.boss.x + this.boss.width / 2, this.floorY - 95, "SEGUNDO ESPIRITU MALIGNO PURIFICADO", "#ffffff", 12, true);
+                audio.playWin();
+                this.boss = null;
+                this.domBossHud.classList.add('hidden');
+                this.saveGame();
+            }
+
+            if (this.boss) {
+                this.updateBossHud();
+            }
         }
 
         // 4. Actualizar el Jefe Final (Niveles 5, 11, 18 y 25)
@@ -5878,6 +6409,26 @@ class Game {
                     damage = this.applyThunderRelicBonus(damage, doppelTwin);
                     damage = this.applyStormRelicSwordBonus(damage);
                     doppelTwin.takeDamage(damage, (this.player.x + this.player.width/2 > doppelTwin.x + doppelTwin.width/2 ? 1 : -1), this.player);
+                    this.freezeTimer = this.player.isChargedStriking ? 12 : 7;
+                }
+            }
+
+            // Atacar al Arconte del Alba Negra (Nivel 44)
+            if (this.level === 44 && this.boss && this.boss.hp > 0 && this.boss.state !== 'dead' && !this.player.hitTargets.includes(this.boss)) {
+                if (this.checkAABBCollision(attackBox, this.boss)) {
+                    this.player.hitTargets.push(this.boss);
+                    let damage = this.player.isChargedStriking ? 25 : 15;
+                    if (this.player.weapon === 'legendary') {
+                        damage = this.player.isChargedStriking ? 35 : 25;
+                        if (this.player.isChargedStriking) this.applyFireDot(this.boss);
+                    } else if (this.player.weapon === 'storm') {
+                        damage = this.player.isChargedStriking ? 55 : 35;
+                        if (this.player.isChargedStriking) this.applyElectricDot(this.boss);
+                    }
+                    damage += (this.player.damageLevel - 1) * 4;
+                    damage = this.applyThunderRelicBonus(damage, this.boss);
+                    damage = this.applyStormRelicSwordBonus(damage);
+                    this.boss.takeDamage(damage, (this.player.x + this.player.width / 2 > this.boss.x + this.boss.width / 2 ? 1 : -1), this.player);
                     this.freezeTimer = this.player.isChargedStriking ? 12 : 7;
                 }
             }
@@ -8426,6 +8977,11 @@ class Game {
                     const distX = Math.abs((this.player.x + this.player.width/2) - (chest.x + chest.width/2));
                     const distY = Math.abs(this.player.y - chest.y);
                     if (distX < 75 && distY < 60) {
+                        if (chest.requiresChallenge && !this.completedChallenges.has(chest.requiresChallenge)) {
+                            particles.addFloatingText(chest.x + chest.width / 2, chest.y - 15, "SUPERA EL RETO DEL TRONO", "#ffd700", 9, true);
+                            audio.playHit();
+                            return;
+                        }
                         if (chest.requiresStormPuzzle && !chest.unlocked) {
                             particles.addFloatingText(chest.x + chest.width / 2, chest.y - 15, "FALTA LA PALANCA DEL TRUENO", "#d9f6ff", 9, true);
                             audio.playHit();
@@ -8735,6 +9291,12 @@ class Game {
             this.saveGame();
             audio.playBonfire();
             particles.addFloatingText(this.player.x, this.player.y - 20, `MUNDO 5-${this.level - 26}`, "#b642f5", 12, true);
+        } else if (this.level >= 35 && this.level <= 43) {
+            // Avanzar al siguiente nivel del Mundo 6
+            this.enterLevelAtStart(this.level + 1);
+            this.saveGame();
+            audio.playBonfire();
+            particles.addFloatingText(this.player.x, this.player.y - 20, `MUNDO 6-${this.level - 34}`, "#ffffff", 12, true);
         }
     }
 
@@ -8809,6 +9371,19 @@ class Game {
             }
         }
 
+        if (this.btnShopBuy) {
+            const maxPotions = this.getMaxMinorPotions();
+            this.player.maxPotions = maxPotions;
+            this.btnShopBuy.disabled = this.player.potions >= maxPotions;
+            if (this.player.potions >= maxPotions) {
+                this.btnShopBuy.innerHTML = `🧪 POCIÓN DE VIDA <span>${this.player.potions}/${maxPotions}</span>`;
+                this.btnShopBuy.style.opacity = '0.45';
+            } else {
+                this.btnShopBuy.innerHTML = `🧪 POCIÓN DE VIDA (10 🪙) <span>${this.player.potions}/${maxPotions}</span>`;
+                this.btnShopBuy.style.opacity = this.player.coins >= 10 ? '1.0' : '0.5';
+            }
+        }
+
         if (this.btnShopBuyGreat) {
             this.btnShopBuyGreat.style.display = '';
             this.btnShopBuyGreat.disabled = this.greatPotionShopPurchased;
@@ -8820,6 +9395,10 @@ class Game {
                 this.btnShopBuyGreat.style.opacity = this.player.coins >= 50 ? '1.0' : '0.5';
             }
         }
+    }
+
+    getMaxMinorPotions() {
+        return this.world5BossDefeated ? 5 : 3;
     }
 
     upgradeStat(statType) {
@@ -8931,10 +9510,13 @@ class Game {
     buyPotionFromShop() {
         if (this.player.hp <= 0) return;
 
-        // Validar si ya tiene 3 pociones (límite máximo permitido)
-        if (this.player.potions >= 3) {
+        const maxPotions = this.getMaxMinorPotions();
+        this.player.maxPotions = maxPotions;
+
+        // Validar si ya tiene el máximo de pociones permitido
+        if (this.player.potions >= maxPotions) {
             audio.playHit();
-            particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 15, "¡MÁXIMO 3 POCIONES!", "#ff3333", 11, true);
+            particles.addFloatingText(this.player.x + this.player.width/2, this.player.y - 15, `¡MÁXIMO ${maxPotions} POCIONES!`, "#ff3333", 11, true);
             return;
         }
 

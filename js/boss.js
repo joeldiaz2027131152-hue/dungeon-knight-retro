@@ -2186,6 +2186,207 @@ export class FallenAngelBoss {
     }
 }
 
+class FallenLightProjectile {
+    constructor(x, y, player, phase = 1) {
+        this.x = x;
+        this.y = y;
+        this.width = 16;
+        this.height = 16;
+        this.active = true;
+        this.damage = phase === 2 ? 18 : 14;
+        this.life = 220;
+        this.pulseTime = Math.random() * Math.PI * 2;
+
+        const dx = (player.x + player.width / 2) - x;
+        const dy = (player.y + player.height / 2) - y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const speed = phase === 2 ? 3.7 : 3.1;
+        this.vx = (dx / dist) * speed;
+        this.vy = (dy / dist) * speed;
+    }
+
+    update() {
+        if (!this.active) return;
+        this.life--;
+        this.pulseTime += 0.14;
+        this.x += this.vx;
+        this.y += this.vy;
+        if (this.life <= 0) this.active = false;
+        if (this.life % 7 === 0) {
+            particles.spawnCollectGlow(this.x + this.width / 2, this.y + this.height / 2, '#ffffff', 1);
+        }
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        ctx.save();
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+        const pulse = Math.sin(this.pulseTime) * 2;
+        const grad = ctx.createRadialGradient(cx, cy, 1, cx, cy, 12 + pulse);
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(0.45, 'rgba(120, 220, 255, 0.95)');
+        grad.addColorStop(1, 'rgba(20, 0, 35, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 12 + pulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+export class WhiteArchonBoss {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 72;
+        this.height = 92;
+        this.maxHp = 1150;
+        this.hp = this.maxHp;
+        this.vx = 0;
+        this.vy = 0;
+        this.gravity = 0.35;
+        this.facing = -1;
+        this.phase = 1;
+        this.state = 'idle';
+        this.cooldown = 80;
+        this.attackTimer = 0;
+        this.hurtTimer = 0;
+        this.animTime = 0;
+        this.spawnedProjectiles = [];
+        this.spawnedShockwaves = [];
+        this.shouldTriggerShake = false;
+        this.deathProcessed = false;
+    }
+
+    update(player, arenaLeft, arenaRight, floorY) {
+        this.animTime++;
+        if (this.hurtTimer > 0) this.hurtTimer--;
+
+        if (this.state === 'dead') {
+            this.vy += this.gravity;
+            this.y += this.vy;
+            if (this.y + this.height >= floorY) {
+                this.y = floorY - this.height;
+                this.vy = 0;
+            }
+            return;
+        }
+
+        if (this.hp <= this.maxHp * 0.5 && this.phase === 1) {
+            this.phase = 2;
+            this.shouldTriggerShake = true;
+            audio.playThunder();
+            particles.addFloatingText(this.x + this.width / 2, this.y - 25, 'EL AURA NEGRA DESPIERTA', '#ff5577', 12, true);
+        }
+
+        const dx = (player.x + player.width / 2) - (this.x + this.width / 2);
+        const dy = (player.y + player.height / 2) - (this.y + this.height / 2);
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        this.facing = dx >= 0 ? 1 : -1;
+
+        const speed = this.phase === 2 ? 2.15 : 1.65;
+        this.vx = (dx / dist) * speed;
+        this.vy += ((dy / dist) * speed * 0.7 - this.vy) * 0.08;
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.x < arenaLeft + 80) this.x = arenaLeft + 80;
+        if (this.x + this.width > arenaRight - 80) this.x = arenaRight - 80 - this.width;
+        if (this.y < floorY - 430) this.y = floorY - 430;
+        if (this.y + this.height > floorY) {
+            this.y = floorY - this.height;
+            this.vy = 0;
+        }
+
+        if (this.cooldown > 0) this.cooldown--;
+        if (this.attackTimer > 0) this.attackTimer--;
+
+        if (this.cooldown <= 0) {
+            this.attackTimer = 28;
+            this.cooldown = this.phase === 2 ? 62 : 86;
+            this.spawnedProjectiles.push(new FallenLightProjectile(this.x + this.width / 2, this.y + 18, player, this.phase));
+            if (this.phase === 2) {
+                this.spawnedProjectiles.push(new FallenLightProjectile(this.x + this.width / 2, this.y + 40, {
+                    x: player.x - 80,
+                    y: player.y,
+                    width: player.width,
+                    height: player.height
+                }, this.phase));
+            }
+            audio.playPortal();
+        }
+    }
+
+    takeDamage(amount = 10) {
+        if (this.state === 'dead') return;
+        this.hp = Math.max(0, this.hp - amount);
+        this.hurtTimer = 14;
+        audio.playHit();
+        particles.spawnSparks(this.x + this.width / 2, this.y + this.height / 2, 12, this.facing);
+        particles.addFloatingText(this.x + this.width / 2, this.y - 12, `-${amount}`, '#ff3333', 10, false);
+
+        if (this.hp <= 0) {
+            this.state = 'dead';
+            this.vx = 0;
+            this.vy = -5.5;
+            this.shouldTriggerShake = true;
+            audio.playDeath();
+            particles.addFloatingText(this.x + this.width / 2, this.y - 24, 'ARCONTE PURIFICADO', '#ffffff', 13, true);
+        }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        if (this.hurtTimer > 0) ctx.globalAlpha = 0.72;
+        ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+        ctx.scale(this.facing, 1);
+
+        const pulse = Math.sin(this.animTime * 0.08);
+        ctx.fillStyle = this.phase === 2 ? 'rgba(255, 0, 80, 0.18)' : 'rgba(255, 255, 255, 0.18)';
+        ctx.beginPath();
+        ctx.arc(0, -6, 58 + pulse * 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#f8fbff';
+        ctx.beginPath();
+        ctx.moveTo(-20, -12);
+        ctx.lineTo(-66, -46 - pulse * 8);
+        ctx.lineTo(-52, 30 + pulse * 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(20, -12);
+        ctx.lineTo(66, -46 - pulse * 8);
+        ctx.lineTo(52, 30 + pulse * 6);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = this.phase === 2 ? '#180918' : '#e7efff';
+        ctx.fillRect(-22, -34, 44, 62);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(-16, -52, 32, 22);
+        ctx.fillStyle = this.phase === 2 ? '#ff335f' : '#00d9ff';
+        ctx.fillRect(-9, -43, 5, 4);
+        ctx.fillRect(4, -43, 5, 4);
+
+        ctx.strokeStyle = this.phase === 2 ? '#ff5577' : '#d9f6ff';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(22, -4);
+        ctx.lineTo(this.attackTimer > 0 ? 72 : 58, this.attackTimer > 0 ? -34 : -20);
+        ctx.stroke();
+
+        ctx.strokeStyle = this.phase === 2 ? 'rgba(255,85,119,0.75)' : 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, -55, 28 + pulse * 3, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+}
+
 export class DoppelgangerBoss {
     constructor(x, y, options = {}) {
         this.x = x;

@@ -30,6 +30,7 @@ export class Knight {
         this.stamina = 100;
         this.coins = 0;
         this.potions = 1;
+        this.maxPotions = 3;
         this.greatPotions = 0;
         this.berries = 0;
         this.violetBerries = 0;
