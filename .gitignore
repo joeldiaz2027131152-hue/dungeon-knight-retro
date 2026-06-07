@@ -6,3 +6,13 @@ My project/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Unity generated/cache folders
+unity-port/Library/
+unity-port/Temp/
+unity-port/Obj/
+unity-port/Build/
+unity-port/Builds/
+unity-port/Logs/
+unity-port/UserSettings/
+unity-port/MemoryCaptures/
