@@ -387,18 +387,24 @@ namespace DungeonKnight.Level
 
         private static void CreateTreasureGateAndLever(Vector2 leverPosition, Vector2 cagePosition)
         {
-            CreateDecorativeBox("Caged Chest Back Wall", cagePosition + new Vector2(0f, 0.14f), new Vector2(2.25f, 1.8f), new Color(0.055f, 0.055f, 0.076f, 0.82f), 2);
-            CreateDecorativeBox("Caged Chest Top Stone", cagePosition + new Vector2(0f, 1.03f), new Vector2(2.45f, 0.18f), new Color(0.3f, 0.31f, 0.34f), 4);
-            CreateDecorativeBox("Caged Chest Floor Stone", cagePosition + new Vector2(0f, -0.73f), new Vector2(2.45f, 0.18f), new Color(0.16f, 0.15f, 0.2f), 4);
-            CreateDecorativeBox("Caged Chest Left Pillar", cagePosition + new Vector2(-1.12f, 0.12f), new Vector2(0.18f, 1.82f), new Color(0.22f, 0.23f, 0.27f), 5);
-            CreateDecorativeBox("Caged Chest Right Pillar", cagePosition + new Vector2(1.12f, 0.12f), new Vector2(0.18f, 1.82f), new Color(0.22f, 0.23f, 0.27f), 5);
+            const int cageBackOrder = 0;
+            const int cageChestOrder = 1;
+            const int cageFrameOrder = 2;
+            const int cageBarOrder = 2;
+
+            CreateDecorativeBox("Caged Chest Back Wall", cagePosition + new Vector2(0f, 0.14f), new Vector2(2.25f, 1.8f), new Color(0.055f, 0.055f, 0.076f, 0.82f), cageBackOrder);
+            CreateDecorativeBox("Caged Chest Top Stone", cagePosition + new Vector2(0f, 1.03f), new Vector2(2.45f, 0.18f), new Color(0.3f, 0.31f, 0.34f), cageFrameOrder);
+            CreateDecorativeBox("Caged Chest Floor Stone", cagePosition + new Vector2(0f, -0.73f), new Vector2(2.45f, 0.18f), new Color(0.16f, 0.15f, 0.2f), cageFrameOrder);
+            CreateDecorativeBox("Caged Chest Left Pillar", cagePosition + new Vector2(-1.12f, 0.12f), new Vector2(0.18f, 1.82f), new Color(0.22f, 0.23f, 0.27f), cageFrameOrder);
+            CreateDecorativeBox("Caged Chest Right Pillar", cagePosition + new Vector2(1.12f, 0.12f), new Vector2(0.18f, 1.82f), new Color(0.22f, 0.23f, 0.27f), cageFrameOrder);
             for (int i = 0; i < 3; i++)
             {
                 float x = -0.72f + i * 0.72f;
-                CreateDecorativeBox("Caged Chest Rear Bar", cagePosition + new Vector2(x, 0.12f), new Vector2(0.055f, 1.48f), new Color(0.1f, 0.105f, 0.13f), 5);
+                CreateDecorativeBox("Caged Chest Rear Bar", cagePosition + new Vector2(x, 0.12f), new Vector2(0.055f, 1.48f), new Color(0.1f, 0.105f, 0.13f), cageBarOrder);
             }
 
             TreasureChest cagedChest = CreateChest(cagePosition + new Vector2(0f, -0.42f), 14);
+            cagedChest.SetVisualSorting(cageChestOrder, cageChestOrder);
 
             GameObject gate = new GameObject("World 1-2 Return Chest Gate");
             gate.transform.position = cagePosition + new Vector2(0f, 0.12f);
@@ -407,13 +413,13 @@ namespace DungeonKnight.Level
             gateCollider.isTrigger = true;
             SetLayerIfExists(gate, "Interactable");
 
-            CreateChildDecorativeBox("Gate Top Rail", gate.transform, new Vector2(0f, 0.76f), new Vector2(2.1f, 0.1f), new Color(0.37f, 0.38f, 0.42f), 2);
-            CreateChildDecorativeBox("Gate Bottom Rail", gate.transform, new Vector2(0f, -0.76f), new Vector2(2.1f, 0.1f), new Color(0.22f, 0.22f, 0.26f), 2);
+            CreateChildDecorativeBox("Gate Top Rail", gate.transform, new Vector2(0f, 0.76f), new Vector2(2.1f, 0.1f), new Color(0.37f, 0.38f, 0.42f), cageFrameOrder);
+            CreateChildDecorativeBox("Gate Bottom Rail", gate.transform, new Vector2(0f, -0.76f), new Vector2(2.1f, 0.1f), new Color(0.22f, 0.22f, 0.26f), cageFrameOrder);
             for (int i = 0; i < 7; i++)
             {
                 float x = -0.84f + i * 0.28f;
-                CreateChildDecorativeBox("Gate Iron Bar", gate.transform, new Vector2(x, 0f), new Vector2(0.06f, 1.52f), new Color(0.15f, 0.16f, 0.2f), 2);
-                CreateChildDecorativeBox("Gate Iron Bar Highlight", gate.transform, new Vector2(x + 0.022f, 0f), new Vector2(0.016f, 1.42f), new Color(0.5f, 0.52f, 0.58f, 0.55f), 2);
+                CreateChildDecorativeBox("Gate Iron Bar", gate.transform, new Vector2(x, 0f), new Vector2(0.06f, 1.52f), new Color(0.15f, 0.16f, 0.2f), cageBarOrder);
+                CreateChildDecorativeBox("Gate Iron Bar Highlight", gate.transform, new Vector2(x + 0.022f, 0f), new Vector2(0.016f, 1.42f), new Color(0.5f, 0.52f, 0.58f, 0.55f), cageBarOrder);
             }
             SimpleGate simpleGate = gate.AddComponent<SimpleGate>();
             cagedChest.RequireGate(simpleGate);

@@ -31,6 +31,19 @@ namespace DungeonKnight.Interactables
             requiredGate = gate;
         }
 
+        public void SetVisualSorting(int bodyOrder, int lidOrder)
+        {
+            if (TryGetComponent(out SpriteRenderer bodyRenderer))
+            {
+                bodyRenderer.sortingOrder = bodyOrder;
+            }
+
+            if (lidAccent && lidAccent.TryGetComponent(out SpriteRenderer lidRenderer))
+            {
+                lidRenderer.sortingOrder = lidOrder;
+            }
+        }
+
         public void Interact(GameObject player)
         {
             if (opened) return;
