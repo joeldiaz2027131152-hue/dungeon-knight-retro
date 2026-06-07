@@ -12,6 +12,9 @@ namespace DungeonKnight.Level
         private Rigidbody2D playerBody;
         private float forceIgnoreUntil;
 
+        public bool IsSlopedSurface => slopedSurface;
+        public Collider2D SurfaceCollider => surfaceCollider;
+
         public void Configure(bool allowOneWayFromBelow, bool isSlopedSurface = false, bool risesToRight = true)
         {
             oneWayFromBelow = allowOneWayFromBelow;
@@ -54,16 +57,31 @@ namespace DungeonKnight.Level
             bool movingUp = playerBody.linearVelocity.y > 0.05f;
             bool bodyIsAboveSurface = playerHead > surfaceTop + 0.18f;
             bool feetNearLandingZone = playerFeet >= surfaceTop - 0.42f;
-            bool canLandOrStand = !movingUp && bodyIsAboveSurface && feetNearLandingZone;
+            bool canLandOrStand = bodyIsAboveSurface && feetNearLandingZone && (slopedSurface || !movingUp);
             bool shouldIgnore = !canLandOrStand;
             Physics2D.IgnoreCollision(playerCollider, surfaceCollider, shouldIgnore);
         }
 
+        public bool TryGetSurfaceTopAt(float worldX, out float surfaceTop)
+        {
+            surfaceTop = 0f;
+            if (!surfaceCollider) return false;
+            surfaceTop = GetSurfaceTopAt(worldX);
+            return true;
+        }
+
         private float GetSurfaceTopAt(float worldX)
         {
+            if (slopedSurface && surfaceCollider is EdgeCollider2D edgeCollider && edgeCollider.pointCount >= 3)
+            {
+                Vector2 slopeStart = edgeCollider.transform.TransformPoint(edgeCollider.points[1]);
+                Vector2 slopeEnd = edgeCollider.transform.TransformPoint(edgeCollider.points[2]);
+                float slopeT = Mathf.InverseLerp(slopeStart.x, slopeEnd.x, worldX);
+                return Mathf.Lerp(slopeStart.y, slopeEnd.y, Mathf.Clamp01(slopeT));
+            }
+
             Bounds bounds = surfaceCollider.bounds;
             if (!slopedSurface) return bounds.max.y;
-
             float t = Mathf.InverseLerp(bounds.min.x, bounds.max.x, worldX);
             t = Mathf.Clamp01(t);
             return ascendingRight

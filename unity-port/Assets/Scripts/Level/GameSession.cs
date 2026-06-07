@@ -57,6 +57,18 @@ namespace DungeonKnight.Level
             StartCoroutine(LevelExit());
         }
 
+        public void ReturnToWorldOneOne()
+        {
+            if (levelComplete || currentLevel != 2) return;
+            StartCoroutine(LevelReturn());
+        }
+
+        public void ReturnToWorldOneTwo()
+        {
+            if (levelComplete || currentLevel != 3) return;
+            StartCoroutine(LevelReturnToWorldOneTwo());
+        }
+
         private void Update()
         {
             if (waitingToStart)
@@ -126,9 +138,14 @@ namespace DungeonKnight.Level
         private void CheckFallDeath()
         {
             if (respawning || levelComplete || paused || !playerController) return;
-            if (playerController.transform.position.y > FallDeathY) return;
+            if (playerController.transform.position.y > GetFallDeathY()) return;
 
             StartCoroutine(FallRespawn());
+        }
+
+        private float GetFallDeathY()
+        {
+            return currentLevel == 3 ? -15.5f : FallDeathY;
         }
 
         private void OnPlayerDied(Health health)
@@ -183,14 +200,17 @@ namespace DungeonKnight.Level
         {
             levelComplete = true;
             bool enteringSecondLevel = currentLevel == 1;
+            bool enteringThirdLevel = currentLevel == 2;
             transitionMessage = enteringSecondLevel
                 ? "Nivel 1-1 completado\nEl porton se abre hacia las escaleras..."
-                : "Nivel 1-2 completado\nAqui seguiremos conectando el mundo.";
-            transitionDuration = enteringSecondLevel ? 3.4f : 2.8f;
+                : enteringThirdLevel
+                    ? "Nivel 1-2 completado\nLa torre despierta sobre la catedral..."
+                    : "Nivel 1-3 completado\nLa cima aun guarda silencio.";
+            transitionDuration = enteringSecondLevel ? 3.4f : enteringThirdLevel ? 3.2f : 2.8f;
             transitionStart = Time.time;
             transitionUntil = Time.time + transitionDuration;
             RetroAudio.Play("door");
-            InteractionFeedback.Show(enteringSecondLevel ? "La puerta se abre hacia el proximo tramo..." : "Demo del 1-2 completada.", 3f);
+            InteractionFeedback.Show(enteringSecondLevel ? "La puerta se abre hacia el proximo tramo..." : enteringThirdLevel ? "Subes hacia la torre de guardia." : "Demo del 1-3 completada.", 3f);
             if (playerController) playerController.enabled = false;
             if (playerController && playerController.TryGetComponent(out Rigidbody2D body))
             {
@@ -213,14 +233,112 @@ namespace DungeonKnight.Level
                 CameraFollow2D follow = Camera.main ? Camera.main.GetComponent<CameraFollow2D>() : null;
                 if (follow)
                 {
-                    follow.Configure(new Vector2(0.75f, 1.25f), 1.45f, 0.14f, new Vector2(45.4f, 1.1f), new Vector2(143.8f, 6.85f));
-                    follow.PlayIntro(new Vector3(45.4f, 3.45f, -10f), 1.05f);
+                    float offset = WorldOneOneBootstrap.WorldOneTwoOffset;
+                    follow.Configure(new Vector2(0.75f, 1.25f), 1.45f, 0.14f, new Vector2(offset - 7.2f, 1.1f), new Vector2(offset + 98.6f, 6.85f));
+                    follow.PlayIntro(new Vector3(offset - 6.4f, 3.45f, -10f), 1.05f);
                 }
 
                 introUntil = Time.time + 2.4f;
                 InteractionFeedback.Show("Mundo 1-2: sube por las escaleras de la catedral.", 3.2f);
             }
+            else if (enteringThirdLevel)
+            {
+                WorldOneOneBootstrap.BuildWorldOneThree();
+                currentLevel = 3;
+                currentAreaTitle = "Mundo 1-3\nLa Torre del Vigia";
+                checkpoint = WorldOneOneBootstrap.WorldOneThreeSpawn;
+                if (playerController)
+                {
+                    playerController.RestoreForRespawn(checkpoint);
+                }
 
+                CameraFollow2D follow = Camera.main ? Camera.main.GetComponent<CameraFollow2D>() : null;
+                if (follow)
+                {
+                    float offset = WorldOneOneBootstrap.WorldOneThreeOffset;
+                    follow.Configure(new Vector2(0.75f, 1.35f), 1.45f, 0.14f, new Vector2(offset - 5.2f, -12.7f), new Vector2(offset + 60.8f, 7.85f));
+                    follow.PlayIntro(new Vector3(offset - 6.4f, 3.2f, -10f), 1.05f);
+                }
+
+                introUntil = Time.time + 2.4f;
+                InteractionFeedback.Show("Mundo 1-3: la torre sube y baja mas alla de la camara.", 3.2f);
+            }
+
+            if (playerController) playerController.enabled = true;
+            levelComplete = false;
+        }
+
+        private IEnumerator LevelReturn()
+        {
+            levelComplete = true;
+            transitionMessage = "Mundo 1-2\nVolviendo al Pasillo Gotico...";
+            transitionDuration = 1.8f;
+            transitionStart = Time.time;
+            transitionUntil = Time.time + transitionDuration;
+            RetroAudio.Play("door");
+            InteractionFeedback.Show("Regresas por el mismo porton.", 2f);
+            if (playerController) playerController.enabled = false;
+            if (playerController && playerController.TryGetComponent(out Rigidbody2D body))
+            {
+                body.linearVelocity = Vector2.zero;
+            }
+
+            yield return new WaitForSeconds(transitionDuration);
+
+            currentLevel = 1;
+            currentAreaTitle = "Mundo 1-1\nEl Pasillo Gotico";
+            checkpoint = WorldOneOneBootstrap.WorldOneOneReturnSpawn;
+            if (playerController)
+            {
+                playerController.RestoreForRespawn(checkpoint);
+            }
+
+            CameraFollow2D follow = Camera.main ? Camera.main.GetComponent<CameraFollow2D>() : null;
+            if (follow)
+            {
+                follow.Configure(new Vector2(0.75f, 1.25f), 1.45f, 0.14f, new Vector2(-0.8f, 1.1f), new Vector2(40.5f, 4.45f));
+                follow.PlayIntro(new Vector3(36.8f, 3.1f, -10f), 0.85f);
+            }
+
+            introUntil = Time.time + 1.8f;
+            if (playerController) playerController.enabled = true;
+            levelComplete = false;
+        }
+
+        private IEnumerator LevelReturnToWorldOneTwo()
+        {
+            levelComplete = true;
+            transitionMessage = "Mundo 1-3\nBajando de vuelta al 1-2...";
+            transitionDuration = 1.8f;
+            transitionStart = Time.time;
+            transitionUntil = Time.time + transitionDuration;
+            RetroAudio.Play("door");
+            InteractionFeedback.Show("Regresas al tramo anterior de la catedral.", 2f);
+            if (playerController) playerController.enabled = false;
+            if (playerController && playerController.TryGetComponent(out Rigidbody2D body))
+            {
+                body.linearVelocity = Vector2.zero;
+            }
+
+            yield return new WaitForSeconds(transitionDuration);
+
+            currentLevel = 2;
+            currentAreaTitle = "Mundo 1-2\nLas Escaleras de la Catedral";
+            checkpoint = new Vector3(WorldOneOneBootstrap.WorldOneTwoOffset + 96.2f, 2.25f, 0f);
+            if (playerController)
+            {
+                playerController.RestoreForRespawn(checkpoint);
+            }
+
+            CameraFollow2D follow = Camera.main ? Camera.main.GetComponent<CameraFollow2D>() : null;
+            if (follow)
+            {
+                float offset = WorldOneOneBootstrap.WorldOneTwoOffset;
+                follow.Configure(new Vector2(0.75f, 1.25f), 1.45f, 0.14f, new Vector2(offset - 7.2f, 1.1f), new Vector2(offset + 98.6f, 6.85f));
+                follow.PlayIntro(new Vector3(offset + 94.8f, 4.35f, -10f), 0.85f);
+            }
+
+            introUntil = Time.time + 1.8f;
             if (playerController) playerController.enabled = true;
             levelComplete = false;
         }

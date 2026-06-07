@@ -382,6 +382,100 @@ namespace DungeonKnight
             });
         }
 
+        public static Sprite FireTrapBase()
+        {
+            return Create("FireTrapBase", new[]
+            {
+                ".....KKKKKKKKKKKKKKKKKKKKKKK.....",
+                "...KKSSSSSSSSSSSSSSSSSSSSSSSKK...",
+                "..KSSDDDDDDDDDDDDDDDDDDDDDDDSSK..",
+                ".KSDDDKKKKDDDDKKKKKDDDDKKKKDDSK.",
+                "KSDDDKRRRKDDDKRHHHRKDDDKRRRKDDSK",
+                "KSDDDKRRRKDDDKRHHHRKDDDKRRRKDDSK",
+                "KSDDDKKKKDDDDKKKKKDDDDKKKKDDSK.",
+                "KSDDDDDDDDDDDDDDDDDDDDDDDDDDDSK",
+                "KSDDSSSSSSSSSSSSSSSSSSSSSSSDDSK",
+                ".KSDDKKDDKDDKDDKDDKDDKDDKKDDSK.",
+                "..KSSDDDDDDDDDDDDDDDDDDDDDSSK..",
+                "...KKSSSSSSSSSSSSSSSSSSSSSKK...",
+                "KSSKKKKKKKKKKKKKKKKKKKKKKKKKSSK",
+                "KSDDSSDDSSDDSSDDSSDDSSDDSSDDDSK",
+                ".KSDDDDDDDDDDDDDDDDDDDDDDDDDSK.",
+                "..KKSSSSSSSSSSSSSSSSSSSSSSKK..",
+                "....KKKKKKKKKKKKKKKKKKKKKKK...."
+            }, new Dictionary<char, Color>
+            {
+                ['K'] = Hex("07080a"),
+                ['S'] = Hex("525a5e"),
+                ['D'] = Hex("202329"),
+                ['R'] = Hex("8c3518"),
+                ['H'] = Hex("ff8c1a")
+            });
+        }
+
+        public static Sprite FireTrapFlame()
+        {
+            return Create("FireTrapFlame", new[]
+            {
+                "..............D..........",
+                ".............DDD.........",
+                "............D.RD.........",
+                "...........D.RRD.........",
+                "..........D.RORD.........",
+                ".........D.ROORD.........",
+                "........D.ROOYRD.........",
+                ".......D.ROOYYRD.........",
+                "......D.ROOYYYRD.........",
+                "......DROOYYHYRD.........",
+                ".....DROOYYHHYRD.........",
+                "....DROOYYHHHYRD.........",
+                "...DROOYYHHHHYRD.........",
+                "...DROYYHHHHYYRD.........",
+                "..DROYYHHHHHYYRD.........",
+                "..DROYYHHHHHYYORD........",
+                ".DROYYHHHHHHYYORD........",
+                ".DROYYHHHHHHYYOORD.......",
+                ".DROYYHHHHHHHYYOORD......",
+                ".DROYYHHHHHHHYYOORD......",
+                "..DROYYHHHHHHYYOOORD.....",
+                "..DROOYYHHHHYYOOOORD.....",
+                "...DROOYYYYYYOOOOORD.....",
+                "...DROOOYYYYOOOOOORD.....",
+                "....DROOOOOOOOOOORD......",
+                ".....DROOOOOOOOORD.......",
+                "......DROOOOOOORD........",
+                ".......DROOOOORD.........",
+                "........DROOORD..........",
+                ".........DRRRD...........",
+                "..........DDD............"
+            }, new Dictionary<char, Color>
+            {
+                ['D'] = Hex("1d1712"),
+                ['R'] = Hex("d93512"),
+                ['O'] = Hex("ff7316"),
+                ['Y'] = Hex("ffbd28"),
+                ['H'] = Hex("fff1a6")
+            });
+        }
+
+        public static Sprite FireTrapSmoke()
+        {
+            return Create("FireTrapSmoke", new[]
+            {
+                ".......S........",
+                "......SSS.......",
+                "....S.SSS.......",
+                "...SSSSS........",
+                "..SSSS..........",
+                "...SSSS.S.......",
+                ".....SSSS.......",
+                "......SS........"
+            }, new Dictionary<char, Color>
+            {
+                ['S'] = new Color(0.12f, 0.11f, 0.1f, 0.55f)
+            });
+        }
+
         public static Sprite ExitDoor()
         {
             return Create("GothicExitDoor", new[]
@@ -522,6 +616,29 @@ namespace DungeonKnight
             {
                 ['Y'] = Hex("ffd76a"),
                 ['O'] = Hex("8f5f1f")
+            });
+        }
+
+        public static Sprite Bat()
+        {
+            return Create("ChasingBat", new[]
+            {
+                "K.............K",
+                "KK...........KK",
+                "KDK.........KDK",
+                "KDDK.......KDDK",
+                ".KDDK.KKK.KDDK.",
+                "..KDDKBBBKDDK..",
+                "...KDBEBEBDK...",
+                "....KBBBBBK....",
+                ".....KBBBK.....",
+                "......K.K......"
+            }, new Dictionary<char, Color>
+            {
+                ['K'] = Hex("09090d"),
+                ['D'] = Hex("3b4050"),
+                ['B'] = Hex("747b91"),
+                ['E'] = Hex("ffe36a")
             });
         }
 

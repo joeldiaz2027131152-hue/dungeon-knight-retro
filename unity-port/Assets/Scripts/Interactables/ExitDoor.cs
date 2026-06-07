@@ -8,13 +8,25 @@ namespace DungeonKnight.Interactables
     public class ExitDoor : MonoBehaviour, IInteractable
     {
         [SerializeField] private bool requiresGateKey;
+        [SerializeField] private bool returnsToWorldOneOne;
+        [SerializeField] private bool returnsToWorldOneTwo;
         private bool unlocked;
 
-        public string Prompt => requiresGateKey && !unlocked ? "Abrir porton" : "Entrar";
+        public string Prompt => returnsToWorldOneOne || returnsToWorldOneTwo ? "Volver" : requiresGateKey && !unlocked ? "Abrir porton" : "Entrar";
 
         public void RequireGateKey()
         {
             requiresGateKey = true;
+        }
+
+        public void ReturnToWorldOneOne()
+        {
+            returnsToWorldOneOne = true;
+        }
+
+        public void ReturnToWorldOneTwo()
+        {
+            returnsToWorldOneTwo = true;
         }
 
         private void OnTriggerStay2D(Collider2D other)
@@ -30,6 +42,18 @@ namespace DungeonKnight.Interactables
 
         public void Interact(GameObject player)
         {
+            if (returnsToWorldOneOne)
+            {
+                GameSession.Instance?.ReturnToWorldOneOne();
+                return;
+            }
+
+            if (returnsToWorldOneTwo)
+            {
+                GameSession.Instance?.ReturnToWorldOneTwo();
+                return;
+            }
+
             if (requiresGateKey && !unlocked)
             {
                 PlayerInventory inventory = player.GetComponent<PlayerInventory>();

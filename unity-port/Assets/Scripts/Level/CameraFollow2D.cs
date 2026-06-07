@@ -34,6 +34,7 @@ namespace DungeonKnight.Level
             smoothTime = newSmoothTime;
             minBounds = boundsMin;
             maxBounds = boundsMax;
+            minY = boundsMin.y;
             useBounds = true;
         }
 

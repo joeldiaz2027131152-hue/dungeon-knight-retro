@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using DungeonKnight.Combat;
 using DungeonKnight.Enemies;
 using DungeonKnight.Level;
@@ -18,6 +19,10 @@ namespace DungeonKnight.Player
         [SerializeField] private float maxFallSpeed = -18f;
         [SerializeField] private Transform groundCheck;
         [SerializeField] private LayerMask groundMask;
+
+        [Header("Traversal")]
+        [SerializeField] private float stairProbeDistance = 0.5f;
+        [SerializeField] private float stairMaxStepUp = 0.42f;
 
         [Header("Combat")]
         [SerializeField] private Transform attackPoint;
@@ -54,7 +59,7 @@ namespace DungeonKnight.Player
         private float stamina = GameConstants.StartingStamina;
         private bool chargeReadyFeedbackPlayed;
         private bool lastBlockWasPerfect;
-        private Collider2D droppedSurface;
+        private readonly List<Collider2D> droppedSurfaces = new List<Collider2D>();
         private float dropSurfaceUntil;
 
         public float Stamina => stamina;
@@ -122,7 +127,7 @@ namespace DungeonKnight.Player
 
             if (Input.GetKeyDown(KeyCode.K))
             {
-                if (stamina >= blockStaminaCost)
+                if (stamina >= EffectiveBlockStaminaCost)
                 {
                     parryTimer = perfectParryWindow;
                 }
@@ -222,6 +227,7 @@ namespace DungeonKnight.Player
                 return;
             }
 
+            ApplyStairAssist();
             float currentSpeed = IsBlocking ? moveSpeed * blockMoveMultiplier : moveSpeed;
             body.linearVelocity = new Vector2(horizontal * currentSpeed, Mathf.Max(body.linearVelocity.y, maxFallSpeed));
         }
@@ -243,19 +249,24 @@ namespace DungeonKnight.Player
 
         private void TryDropThroughSurface()
         {
-            Collider2D surface = FindDropThroughSurface();
-            if (!surface) return;
+            List<Collider2D> surfaces = FindDropThroughSurfaces();
+            if (surfaces.Count == 0) return;
 
-            droppedSurface = surface;
-            dropSurfaceUntil = Time.time + 0.42f;
-            if (droppedSurface.TryGetComponent(out DropThroughSurface dropSurface))
+            dropSurfaceUntil = Time.time + 0.68f;
+            foreach (Collider2D surface in surfaces)
             {
-                dropSurface.IgnorePlayerUntil(dropSurfaceUntil);
+                if (!surface) continue;
+                if (!droppedSurfaces.Contains(surface)) droppedSurfaces.Add(surface);
+                if (surface.TryGetComponent(out DropThroughSurface dropSurface))
+                {
+                    dropSurface.IgnorePlayerUntil(dropSurfaceUntil);
+                }
+                else
+                {
+                    Physics2D.IgnoreCollision(playerCollider, surface, true);
+                }
             }
-            else
-            {
-                Physics2D.IgnoreCollision(playerCollider, droppedSurface, true);
-            }
+
             isGrounded = false;
             body.linearVelocity = new Vector2(body.linearVelocity.x, -5.4f);
             transform.position += Vector3.down * 0.08f;
@@ -265,33 +276,103 @@ namespace DungeonKnight.Player
 
         private void UpdateDroppedSurfaceCollision()
         {
-            if (!droppedSurface) return;
+            if (droppedSurfaces.Count == 0) return;
             if (Time.time < dropSurfaceUntil) return;
 
-            Physics2D.IgnoreCollision(playerCollider, droppedSurface, false);
-            droppedSurface = null;
+            foreach (Collider2D surface in droppedSurfaces)
+            {
+                if (surface) Physics2D.IgnoreCollision(playerCollider, surface, false);
+            }
+            droppedSurfaces.Clear();
         }
 
-        private Collider2D FindDropThroughSurface()
+        private List<Collider2D> FindDropThroughSurfaces()
         {
+            List<Collider2D> surfaces = new List<Collider2D>();
             Bounds bounds = playerCollider.bounds;
             Vector2 center = new Vector2(bounds.center.x, bounds.min.y + 0.04f);
             Vector2 left = center + Vector2.left * bounds.extents.x * 0.72f;
             Vector2 right = center + Vector2.right * bounds.extents.x * 0.72f;
-            const float rayDistance = 0.32f;
+            const float rayDistance = 0.56f;
 
-            Collider2D surface = GetDropSurfaceFromRay(center, rayDistance);
-            if (surface) return surface;
-            surface = GetDropSurfaceFromRay(left, rayDistance);
-            if (surface) return surface;
-            return GetDropSurfaceFromRay(right, rayDistance);
+            AddDropSurfacesFromRay(center, rayDistance, surfaces);
+            AddDropSurfacesFromRay(left, rayDistance, surfaces);
+            AddDropSurfacesFromRay(right, rayDistance, surfaces);
+
+            Vector2 overlapCenter = center + Vector2.down * 0.12f;
+            Vector2 overlapSize = new Vector2(bounds.size.x * 1.35f, 0.44f);
+            Collider2D[] overlaps = Physics2D.OverlapBoxAll(overlapCenter, overlapSize, 0f, groundMask);
+            foreach (Collider2D overlap in overlaps)
+            {
+                if (overlap && overlap.GetComponent<DropThroughSurface>() && !surfaces.Contains(overlap))
+                {
+                    surfaces.Add(overlap);
+                }
+            }
+
+            return surfaces;
         }
 
-        private Collider2D GetDropSurfaceFromRay(Vector2 origin, float distance)
+        private void AddDropSurfacesFromRay(Vector2 origin, float distance, List<Collider2D> surfaces)
         {
-            RaycastHit2D hit = Physics2D.Raycast(origin, Vector2.down, distance, groundMask);
-            if (!hit.collider) return null;
-            return hit.collider.GetComponent<DropThroughSurface>() ? hit.collider : null;
+            RaycastHit2D[] hits = Physics2D.RaycastAll(origin, Vector2.down, distance, groundMask);
+            foreach (RaycastHit2D hit in hits)
+            {
+                Collider2D surface = hit.collider;
+                if (surface && surface.GetComponent<DropThroughSurface>() && !surfaces.Contains(surface))
+                {
+                    surfaces.Add(surface);
+                }
+            }
+        }
+
+        private void ApplyStairAssist()
+        {
+            if (isRolling || Mathf.Abs(horizontal) < 0.1f) return;
+            if (Time.time < dropSurfaceUntil) return;
+            if (!isGrounded && body.linearVelocity.y > 0.2f) return;
+
+            Bounds bounds = playerCollider.bounds;
+            float direction = Mathf.Sign(horizontal);
+            float probeY = bounds.min.y + stairMaxStepUp + 0.16f;
+            float rayDistance = stairMaxStepUp + 0.46f;
+            Vector2[] origins =
+            {
+                new Vector2(bounds.center.x + direction * (bounds.extents.x + stairProbeDistance), probeY),
+                new Vector2(bounds.center.x + direction * bounds.extents.x * 0.35f, probeY),
+                new Vector2(bounds.center.x, probeY)
+            };
+
+            DropThroughSurface bestSurface = null;
+            float bestSurfaceY = float.NegativeInfinity;
+            foreach (Vector2 origin in origins)
+            {
+                RaycastHit2D[] hits = Physics2D.RaycastAll(origin, Vector2.down, rayDistance, groundMask);
+                foreach (RaycastHit2D hit in hits)
+                {
+                    if (!hit.collider) continue;
+                    DropThroughSurface surface = hit.collider.GetComponent<DropThroughSurface>();
+                    if (!surface || !surface.TryGetSurfaceTopAt(origin.x, out float surfaceY)) continue;
+
+                    float stepUp = surfaceY - bounds.min.y;
+                    float maxStepDown = surface.IsSlopedSurface ? -0.58f : -0.08f;
+                    if (stepUp < maxStepDown || stepUp > stairMaxStepUp) continue;
+                    if (surfaceY <= bestSurfaceY) continue;
+
+                    bestSurface = surface;
+                    bestSurfaceY = surfaceY;
+                }
+            }
+
+            if (!bestSurface) return;
+
+            float lift = bestSurfaceY - bounds.min.y + 0.015f;
+            if (lift <= 0f && (!bestSurface.IsSlopedSurface || isGrounded)) return;
+            lift = Mathf.Clamp(lift, -0.12f, stairMaxStepUp);
+
+            Vector2 adjusted = body.position + Vector2.up * lift;
+            body.position = adjusted;
+            body.linearVelocity = new Vector2(body.linearVelocity.x, Mathf.Max(body.linearVelocity.y, 0f));
         }
 
         private void Attack(bool charged = false)
@@ -370,7 +451,8 @@ namespace DungeonKnight.Player
         public bool TryBlockHit(Vector3 sourcePosition)
         {
             lastBlockWasPerfect = false;
-            if (!IsBlocking || stamina < blockStaminaCost)
+            float blockCost = EffectiveBlockStaminaCost;
+            if (!IsBlocking || stamina < blockCost)
             {
                 if (IsBlocking) TriggerStaminaWarning();
                 return false;
@@ -383,7 +465,7 @@ namespace DungeonKnight.Player
             bool perfect = parryTimer > 0f;
             if (!perfect)
             {
-                stamina = Mathf.Max(0f, stamina - blockStaminaCost);
+                stamina = Mathf.Max(0f, stamina - blockCost);
                 if (stamina <= 0f)
                 {
                     IsBlocking = false;
@@ -411,6 +493,8 @@ namespace DungeonKnight.Player
             staminaWarningUntil = Time.time + 0.45f;
             RetroAudio.Play("fail");
         }
+
+        private float EffectiveBlockStaminaCost => inventory && inventory.IsTowerShieldEquipped ? blockStaminaCost * 0.58f : blockStaminaCost;
 
         public void PlayHurtReaction()
         {
@@ -483,11 +567,13 @@ namespace DungeonKnight.Player
 
             shieldRenderer.flipX = facing < 0;
             bool wantsShield = Input.GetKey(KeyCode.K);
-            shieldRenderer.enabled = IsBlocking || (wantsShield && stamina <= blockStaminaCost);
+            shieldRenderer.enabled = IsBlocking || (wantsShield && stamina <= EffectiveBlockStaminaCost);
             shieldRenderer.transform.localPosition = new Vector2(facing * 0.4f, 0.18f);
             float pulse = IsBlocking ? 1f + Mathf.Sin(Time.time * 8f) * 0.035f : 1f;
             shieldRenderer.transform.localScale = new Vector2(0.72f * pulse, 0.82f * pulse);
-            shieldRenderer.color = stamina <= blockStaminaCost ? new Color(1f, 0.28f, 0.22f, 0.82f) : Color.white;
+            shieldRenderer.color = stamina <= EffectiveBlockStaminaCost
+                ? new Color(1f, 0.28f, 0.22f, 0.82f)
+                : inventory && inventory.IsTowerShieldEquipped ? new Color(1f, 0.9f, 0.45f, 1f) : Color.white;
         }
 
         private void UpdateChargeVisual()
@@ -577,11 +663,11 @@ namespace DungeonKnight.Player
 
         public void RestoreForRespawn(Vector3 position)
         {
-            if (droppedSurface)
+            foreach (Collider2D surface in droppedSurfaces)
             {
-                Physics2D.IgnoreCollision(playerCollider, droppedSurface, false);
-                droppedSurface = null;
+                if (surface) Physics2D.IgnoreCollision(playerCollider, surface, false);
             }
+            droppedSurfaces.Clear();
 
             transform.position = position;
             body.linearVelocity = Vector2.zero;

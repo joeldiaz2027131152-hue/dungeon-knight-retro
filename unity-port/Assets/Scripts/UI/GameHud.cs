@@ -167,7 +167,8 @@ namespace DungeonKnight.UI
             }
 
             Rect shieldSlot = new Rect(panel.x + 18f, panel.y + 108f, panel.width - 36f, 48f);
-            DrawEquipmentSlot(shieldSlot, "ESCUDO", "Escudo de acero", shieldsOpen ? new Color(0.8f, 0.86f, 0.98f) : new Color(0.62f, 0.66f, 0.74f), "D");
+            Color shieldAccent = inventory.IsTowerShieldEquipped ? new Color(1f, 0.82f, 0.28f) : new Color(0.62f, 0.66f, 0.74f);
+            DrawEquipmentSlot(shieldSlot, "ESCUDO", inventory.EquippedShieldName, shieldsOpen ? new Color(0.8f, 0.86f, 0.98f) : shieldAccent, "D");
             if (GUI.Button(shieldSlot, GUIContent.none, GUIStyle.none))
             {
                 shieldsOpen = !shieldsOpen;
@@ -218,7 +219,7 @@ namespace DungeonKnight.UI
             }
             else if (shieldsOpen)
             {
-                DrawSubInventory(panel, "RESERVA DE ESCUDOS", "Aqui podras escoger entre 6 escudos cuando los anadamos.", new[] { "Escudo", "Vacio", "Vacio", "Vacio", "Vacio", "Vacio" }, new[] { "USO", "", "", "", "", "" }, panel.y + 398f);
+                DrawShieldInventory(panel, panel.y + 398f);
             }
             else if (consumablesOpen)
             {
@@ -281,13 +282,42 @@ namespace DungeonKnight.UI
             GUI.Label(new Rect(subPanel.x + 166f, subPanel.y + 28f, subPanel.width - 176f, 88f), description, subDescriptionStyle);
         }
 
-        private void DrawMiniSlot(Rect rect, string title, string value, Color accent)
+        private void DrawShieldInventory(Rect panel, float y)
+        {
+            Rect subPanel = new Rect(panel.x + 12f, y, panel.width - 24f, 134f);
+            DrawSoftBox(subPanel, new Color(0.028f, 0.028f, 0.044f, 0.94f), new Color(0.52f, 0.42f, 0.26f, 0.82f));
+            GUI.Label(new Rect(subPanel.x + 10f, subPanel.y + 5f, subPanel.width - 20f, 18f), "RESERVA DE ESCUDOS", smallStyle);
+
+            float size = 42f;
+            float gap = 10f;
+            float x = subPanel.x + 10f;
+            float gridY = subPanel.y + 26f;
+            for (int i = 0; i < 6; i++)
+            {
+                int column = i % 3;
+                int row = i / 3;
+                Rect slot = new Rect(x + column * (size + gap), gridY + row * (size + gap), size, size);
+                bool active = inventory.HasShieldAt(i);
+                bool selected = active && inventory.EquippedShieldSlot == i;
+                Color accent = i == 1 ? new Color(1f, 0.78f, 0.22f) : new Color(0.62f, 0.66f, 0.74f);
+                DrawMiniSlot(slot, active ? inventory.GetShieldName(i) : "", inventory.GetShieldValue(i), active ? accent : new Color(0.3f, 0.3f, 0.36f), selected);
+                if (active && GUI.Button(slot, GUIContent.none, GUIStyle.none))
+                {
+                    inventory.SelectShieldSlot(i);
+                    RetroAudio.Play("secret");
+                }
+            }
+
+            GUI.Label(new Rect(subPanel.x + 166f, subPanel.y + 28f, subPanel.width - 176f, 88f), "Click en un escudo guardado para equiparlo. El Escudo de la Torre reduce la estamina al bloquear.", subDescriptionStyle);
+        }
+
+        private void DrawMiniSlot(Rect rect, string title, string value, Color accent, bool selected = false)
         {
             bool active = !string.IsNullOrEmpty(value);
-            DrawSoftBox(rect, new Color(0.04f, 0.04f, 0.058f, 0.92f), active ? new Color(accent.r, accent.g, accent.b, 0.72f) : new Color(0.24f, 0.24f, 0.3f, 0.64f));
+            DrawSoftBox(rect, new Color(0.04f, 0.04f, 0.058f, 0.92f), active ? new Color(accent.r, accent.g, accent.b, selected ? 1f : 0.72f) : new Color(0.24f, 0.24f, 0.3f, 0.64f));
             if (active)
             {
-                DrawRect(new Rect(rect.x + 6f, rect.y + 6f, rect.width - 12f, rect.height - 12f), new Color(accent.r, accent.g, accent.b, 0.18f));
+                DrawRect(new Rect(rect.x + 6f, rect.y + 6f, rect.width - 12f, rect.height - 12f), new Color(accent.r, accent.g, accent.b, selected ? 0.26f : 0.18f));
             }
             GUI.Label(new Rect(rect.x + 3f, rect.y + rect.height - 15f, rect.width - 6f, 12f), title, miniSlotStyle);
             GUI.Label(new Rect(rect.x + rect.width - 24f, rect.y + 3f, 20f, 12f), value, miniValueStyle);
