@@ -6,7 +6,7 @@ Primer vertical slice del port a Unity 2D usando el mundo 1-1 como base.
 
 1. Abre Unity Hub.
 2. Usa **Add project from disk**.
-3. Selecciona la carpeta `dungeon-knight-retro-unity`.
+3. Selecciona la carpeta `dungeon-knight-2d-unity`.
 4. Abre el proyecto con Unity 2022 LTS o superior.
 5. Crea o abre una escena vacia y pulsa Play.
 
